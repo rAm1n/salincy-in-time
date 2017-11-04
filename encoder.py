@@ -5,11 +5,6 @@ import torch.utils.model_zoo as model_zoo
 import math
 
 
-__all__ = [
-	'VGG', 'vgg11', 'vgg11_bn', 'vgg13', 'vgg13_bn', 'vgg16', 'vgg16_bn',
-	'vgg19_bn', 'vgg19',
-]
-
 
 model_urls = {
 	'vgg11': 'https://download.pytorch.org/models/vgg11-bbd30ac9.pth',
@@ -26,7 +21,7 @@ config = [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M']
 
 class Encoder(nn.Module):
 
-	def __init__(self, features, num_classes=1024):
+	def __init__(self, features, num_classes=32*32):
 		super(Encoder, self).__init__()
 		self.features = features
 		out_channels = self.features[-3].out_channels

@@ -5,14 +5,6 @@ from torch.autograd import Variable
 import torch
 
 
-def weights_init(m):
-	classname = m.__class__.__name__
-	if classname.find('Conv') != -1:
-		m.weight.data.normal_(0.0, 0.02)
-	elif classname.find('BatchNorm') != -1:
-		m.weight.data.normal_(1.0, 0.02)
-		m.bias.data.fill_(0)
-
 class ConvLSTMCell(nn.Module):
 
 	def __init__(self, input_size, input_dim, hidden_dim, kernel_size, bias):
@@ -65,7 +57,7 @@ class ConvLSTMCell(nn.Module):
 		c_next = f * c_cur + i * g
 		h_next = o * torch.tanh(c_next)
 
-		return h_next, c_next
+		return o, (h_next, c_next)
 
 	def init_hidden(self, batch_size):
 		return (Variable(torch.zeros(batch_size, self.hidden_dim, self.height, self.width)).cuda(),
@@ -177,3 +169,18 @@ class ConvLSTM(nn.Module):
 		if not isinstance(param, list):
 			param = [param] * num_layers
 		return param
+
+
+	def _initialize_weights(self):
+		for m in self.modules():
+			if isinstance(m, nn.Conv2d):
+				n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+				m.weight.data.normal_(0, math.sqrt(2. / n))
+				if m.bias is not None:
+					m.bias.data.zero_()
+			elif isinstance(m, nn.BatchNorm2d):
+				m.weight.data.fill_(1)
+				m.bias.data.zero_()
+			elif isinstance(m, nn.Linear):
+				m.weight.data.normal_(0, 0.01)
+				m.bias.data.zero_()
