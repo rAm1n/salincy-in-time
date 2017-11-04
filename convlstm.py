@@ -120,7 +120,8 @@ class ConvLSTM(nn.Module):
 
 		# Implement stateful ConvLSTM
 		if hidden_state is not None:
-			raise NotImplementedError()
+			# raise NotImplementedError()
+			pass
 		else:
 			hidden_state = self._init_hidden(batch_size=input_tensor.size(0))
 
@@ -170,17 +171,3 @@ class ConvLSTM(nn.Module):
 			param = [param] * num_layers
 		return param
 
-
-	def _initialize_weights(self):
-		for m in self.modules():
-			if isinstance(m, nn.Conv2d):
-				n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-				m.weight.data.normal_(0, math.sqrt(2. / n))
-				if m.bias is not None:
-					m.bias.data.zero_()
-			elif isinstance(m, nn.BatchNorm2d):
-				m.weight.data.fill_(1)
-				m.bias.data.zero_()
-			elif isinstance(m, nn.Linear):
-				m.weight.data.normal_(0, 0.01)
-				m.bias.data.zero_()

@@ -22,7 +22,7 @@ def make_batch(path='', d_name='CAT2000', im_size=(224,224), size=1900, batch_si
 	)
 	preprocess = transforms.Compose([
 	   transforms.Scale(im_size),
-	   transforms.ToTensor(),
+	   # transforms.ToTensor(),
 	   normalize
 	])
 
