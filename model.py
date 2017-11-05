@@ -15,16 +15,19 @@ import time
 class SpatioTemporalSaliency(nn.Module):
 
 	def __init__(self, num_layers=2):
-
-		self.encoder = make_encoder(pretrained=True)
-		self.CLSTM = ConvLSTM((28,28), 1, [64, 64, 128], (3), num_layers,
+		super(SpatioTemporalSaliency, self).__init__()
+	
+		self.encoder = make_encoder(pretrained=False)
+		self.CLSTM = ConvLSTM((32,32), 1, [64, 128], [(3,3), (3,3)], num_layers,
 				 batch_first=True, bias=True, return_all_layers=True)
 		self.conv_out = nn.Conv2d(128, 1, kernel_size=3, padding=1, bias=False)
+		
+		
 
 	def _init_hidden_state(self):
 		return self.CLSTM._init_hidden()
 
-	def forward(images,sequence):
+	def forward(self, images, sequence):
 		assert images.size()[2:] == (224, 224)
 		assert images.size(0) == sequence.size(0)
 		features = self.encoder(images)
@@ -45,7 +48,7 @@ class SpatioTemporalSaliency(nn.Module):
 		for m in self.modules():
 			if isinstance(m, nn.Conv2d):
 				n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-				m.weight.data.normal_(0, math.sqrt(2. / n))
+				m.weight.data.normal_(0, np.sqrt(2. / n))
 				if m.bias is not None:
 					m.bias.data.zero_()
 			elif isinstance(m, nn.BatchNorm2d):

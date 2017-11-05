@@ -8,7 +8,7 @@ from model import SpatioTemporalSaliency
 import numpy as np
 import cv2
 import time
-from data.utils import make_batch
+from utils.data import make_batch
 
 
 
@@ -25,6 +25,7 @@ seq_start = 5
 lr = .001
 keep_prob = 0.8
 dtype = torch.cuda.FloatTensor
+torch.set_default_tensor_type('torch.cuda.FloatTensor')
 fourcc = cv2.VideoWriter_fourcc(*'MJPG')
 
 epoch = 5
@@ -32,17 +33,22 @@ epoch = 5
 
 
 def train():
+	
+	print('building model')
 	model = SpatioTemporalSaliency()
-	model._initialize_weights()
-	model = model.cuda()
+        print('initializing')
+        model._initialize_weights()
+        print("let's bring on gpus!")
+        model = model.cuda()
 
 	crit = nn.KLDivLoss()
 	optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 	# drop = nn.Dropout(keep_prob)
 	# hidden_state = model.init_hidden(batch_size)
 
-	data = make_batch(size=100)
+	print 'prep dataset'
 
+	data = make_batch(size=100)
 
 	start = time.time()
 	l = list()
@@ -51,9 +57,9 @@ def train():
 			images = [img[0] for img in batch]
 			images = torch.stack(images)
 
-			seq = [img[1] for img in batch]
-			seq_input = torch.from_numpy(np.array(seq[:,:-1,...]))
-			target = torch.from_numpy(np.array(seq))
+			seq = np.array([img[1] for img in batch], dtype=np.float32)
+			seq_input = torch.from_numpy(seq[:,:-1,...]).unsqueeze(2)
+			target = torch.from_numpy(seq).unsqueeze(2)
 
 			images = Variable(images.cuda(), requires_grad=True)
 			seq_input = Variable(seq_input.cuda(), requires_grad=True)

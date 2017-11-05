@@ -22,7 +22,7 @@ def make_batch(path='', d_name='CAT2000', im_size=(224,224), size=1900, batch_si
 	)
 	preprocess = transforms.Compose([
 	   transforms.Scale(im_size),
-	   # transforms.ToTensor(),
+	   transforms.ToTensor(),
 	   normalize
 	])
 
@@ -36,7 +36,6 @@ def make_batch(path='', d_name='CAT2000', im_size=(224,224), size=1900, batch_si
 	print('starting processs.')
 	print('stage 1 - cleaning dataset')
 	for img_idx, img in enumerate(stim_path):
-		print(img_idx)
 		img = Image.open(img)
 		if img.mode == 'RGB':
 			p = preprocess(img)
