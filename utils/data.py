@@ -11,6 +11,7 @@ import random
 
 
 
+
 def make_batch(path='', d_name='CAT2000', im_size=(224,224), size=1900, batch_size=4, min_len=5, max_len=30, grid_size=32, gamma=1):
 	d = SaliencyBundle(d_name)
 	seq = list(d.get('sequence', percentile=True, modify='remove'))[:size]
@@ -67,6 +68,7 @@ def make_batch(path='', d_name='CAT2000', im_size=(224,224), size=1900, batch_si
 				dataset.append(batch)
 				batch=list()
 
+	random.shuffle(dataset)
 	if path:
 		print('dumping data')
 		f = open(path, 'w')

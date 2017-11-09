@@ -18,31 +18,50 @@ class SpatioTemporalSaliency(nn.Module):
 		super(SpatioTemporalSaliency, self).__init__()
 	
 		self.encoder = make_encoder(pretrained=False)
-		self.CLSTM = ConvLSTM((32,32), 1, [64, 128], [(3,3), (3,3)], num_layers,
-				 batch_first=True, bias=True, return_all_layers=True)
-		self.conv_out = nn.Conv2d(128, 1, kernel_size=3, padding=1, bias=False)
+		self.CLSTM = ConvLSTM((32,32), 1, [64], [(3,3)], num_layers,
+				 batch_first=True, bias=True, return_all_layers=False)
+		self.conv_out = nn.Conv2d(64, 1, kernel_size=3, padding=1, bias=False)
+		#self.softmax = nn.Softmax()
+		self.softmax = nn.Sigmoid()
 		
 		
 
 	def _init_hidden_state(self):
 		return self.CLSTM._init_hidden()
 
-	def forward(self, images, sequence):
+	def forward(self, images, sequence=None, eval_mode=False ,itr=30):
 		assert images.size()[2:] == (224, 224)
-		assert images.size(0) == sequence.size(0)
+
 		features = self.encoder(images)
 		out_im, hidden_c = self.CLSTM(features)
-		out_seq, hidden_c = self.CLSTM(sequence, hidden_c)
 
-		output = torch.stack([out_im, out_seq], dim=1)
-		# out_im_conv = self.conv_out(out_im[-1:])
-		# output.append(out_im_conv)
-		# for h in out_seq[-1:]:
-			# out_seq_conv = self.conv_out(h)
-			# output.append(s
-		# output.append(out_1_conv)
-		return self.conv_out(output)
+		if not eval_mode:
+			assert images.size(0) == sequence.size(0)
+			out_seq, hidden_c = self.CLSTM(sequence, hidden_c)
+		else:
+			out_seq = list()
+			tmp_out = out_im[-1]
+			for t in range(itr):
+				print(tmp_out[-1].size(), len(hidden_c[0]))
+				tmp_out , hidden_c = self.CLSTM(tmp_out , hidden_c)
+				out_t = self.conv_out(output[:,0,...])
+				b, _, h, w = out_t.size()
+				out_softmax = self.softmax(out_t.view(b, -1))
+				tmp_out = [out_softmax.view(b,1,h,w)]
+				out_seq.append(tmp_out[-1])i
+				
+			out_seq = torch.cat(out_seq)
+		output = torch.cat((out_im[-1], out_seq[-1]), dim=1)
 
+
+		# getting conv result
+		result = list()
+		for t in xrange(output.size(1)):
+			out_t = self.conv_out(output[:,t,...])
+			b, _, h, w = out_t.size()
+			out_softmax = self.softmax(out_t.view(b, -1))
+			result.append(out_softmax.view(b,1,h,w))
+		return torch.stack(result, dim=1)
 
 	def _initialize_weights(self,vgg=True):
 		for m in self.modules():

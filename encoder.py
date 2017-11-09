@@ -27,13 +27,13 @@ class Encoder(nn.Module):
 		out_channels = self.features[-3].out_channels
 		self.num_classes = num_classes
 		self.embedding = nn.Sequential(
-			nn.Linear(out_channels * 28 * 28, 4096),
-			nn.ReLU(True),
-			nn.Dropout(),
-			nn.Linear(4096, 4096),
-			nn.ReLU(True),
-			nn.Dropout(),
-			nn.Linear(4096, num_classes),
+			nn.Linear(out_channels * 28 * 28, num_classes),
+#			nn.ReLU(True),
+#			nn.Dropout(),
+#			nn.Linear(4096, 4096),
+#			nn.ReLU(True),
+#			nn.Dropout(),
+#			nn.Linear(4096, num_classes),
 		)
 #		self._initialize_weights()
 
