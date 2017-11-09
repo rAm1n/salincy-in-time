@@ -45,7 +45,7 @@ class ConvLSTMCell(nn.Module):
 
 		h_cur, c_cur = cur_state
 		combined = torch.cat([input_tensor, h_cur], dim=1)  # concatenate along channel axis
-		
+
 		combined_conv = self.conv(combined)
 		cc_i, cc_f, cc_o, cc_g = torch.split(combined_conv, self.hidden_dim, dim=1)
 		i = torch.sigmoid(cc_i)
@@ -57,7 +57,7 @@ class ConvLSTMCell(nn.Module):
 
 		c_next = f * c_cur + i * g
 		h_next = o * torch.tanh(c_next)
-	
+
 		return (h_next, c_next)
 
 	def init_hidden(self, batch_size):
@@ -143,7 +143,7 @@ class ConvLSTM(nn.Module):
 
 			layer_output = torch.stack(output_inner, dim=1)
 			cur_layer_input = layer_output
-			
+
 			layer_output_list.append(layer_output)
 			last_state_list.append([h, c])
 
@@ -170,4 +170,31 @@ class ConvLSTM(nn.Module):
 		if not isinstance(param, list):
 			param = [param] * num_layers
 		return param
+
+
+
+class Custom_ConvLstm(nn.Module):
+
+	def __init__(self):
+		super(Custom_ConvLstm, self).__init__()
+
+		# self.input_linear = nn.Linear()
+
+		self.CLSTM = ConvLSTM((32,32), 1, [64], [(3,3)], 1,
+				 batch_first=True, bias=True, return_all_layers=True)
+		self.conv_out = nn.Conv2d(64, 1, kernel_size=3, padding=1, bias=False)
+
+	def forward(input, hidden_c=None):
+		_b, _t, _c , _h, _w = input.size()
+		assert _c, _h, _w == (1 , 32, 32)
+
+		lstm_output = list()
+		conv_output = list()
+
+		for t in range(_t):
+			output, hidden_c = self.CLSTM(input[:,t,...], hidden_c)
+			conv_output.append(self.conv_out(output[-1]))
+			lstm_output.append([output, hidden_c])
+
+		return conv_output, lstm_output
 

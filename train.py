@@ -33,7 +33,7 @@ epoch = 5
 
 
 def train():
-	
+
 	print('building model')
 	model = SpatioTemporalSaliency(num_layers=1)
 	print('initializing')
@@ -65,14 +65,14 @@ def train():
 			images = Variable(images.cuda(), requires_grad=True)
 			seq_input = Variable(seq_input.cuda(), requires_grad=True)
 			target = Variable(target.cuda(), requires_grad=False)
-			
+
 			#torch.cuda.synchronize()
-			
+
 			output = model(images, seq_input)
 
 			loss = 0
 			for t in xrange(target.size(1)):
-				loss += crit(output[:,t,...].squeeze(), target[:,t,...].squeeze())	
+				loss += crit(output[:,t,...].squeeze(), target[:,t,...].squeeze())
 
 			try:
 				loss.backward()
@@ -98,8 +98,8 @@ def train():
 			 	success = video.open("generated_conv_lstm_video_{0}.avi".format(step), fourcc, 4, (180, 180), True)
 			# 	hidden_state = model.init_hidden(batch_size)
 			 	model.eval()
-				output = model(images[0].unsqueeze(0), eval_mode=True)
-				
+				output = model(images[0].unsqueeze(0), sequence=None)
+
 			 	#ims = torch.cat(output,1).permute(0,1,4,3,2)
 			 	ims = ims[0].data.cpu().numpy()
 			 	for i in xrange(31):
