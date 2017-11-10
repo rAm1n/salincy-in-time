@@ -184,17 +184,16 @@ class Custom_ConvLstm(nn.Module):
 				 batch_first=True, bias=True, return_all_layers=True)
 		self.conv_out = nn.Conv2d(64, 1, kernel_size=3, padding=1, bias=False)
 
-	def forward(input, hidden_c=None):
+
+	def forward(self, input, hidden_c=None):
 		_b, _t, _c , _h, _w = input.size()
-		assert _c, _h, _w == (1 , 32, 32)
+		assert (_c, _h, _w) == (1 , 32, 32)
 
-		lstm_output = list()
 		conv_output = list()
-
-		for t in range(_t):
-			output, hidden_c = self.CLSTM(input[:,t,...], hidden_c)
-			conv_output.append(self.conv_out(output[-1]))
-			lstm_output.append([output, hidden_c])
-
-		return conv_output, lstm_output
+		output, hidden_c = self.CLSTM(input, hidden_c)
+		output = output[-1]
+		for t in xrange(output.size(1)):
+			conv_output.append(self.conv_out(output[:,t,...]))
+		conv_output = torch.stack(conv_output, dim=1)
+		return conv_output, [output, hidden_c]
 

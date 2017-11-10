@@ -10,6 +10,7 @@ import cv2
 import time
 from utils.data import make_batch
 import gc
+import scipy.misc
 
 
 num_features=10
@@ -22,7 +23,7 @@ seq_len=10
 num_balls = 2
 max_step = 200000
 seq_start = 5
-lr = .001
+lr = 0.000001
 keep_prob = 0.8
 dtype = torch.cuda.FloatTensor
 torch.set_default_tensor_type('torch.cuda.FloatTensor')
@@ -30,7 +31,8 @@ fourcc = cv2.VideoWriter_fourcc(*'MJPG')
 
 epoch = 5
 
-
+test = scipy.misc.imread('test.jpg')
+test = Variable(torch.from_numpy(test)).permute(2,0,1).unsqueeze(0).unsqueeze(0)
 
 def train():
 
@@ -67,9 +69,7 @@ def train():
 			target = Variable(target.cuda(), requires_grad=False)
 
 			#torch.cuda.synchronize()
-
 			output = model(images, seq_input)
-
 			loss = 0
 			for t in xrange(target.size(1)):
 				loss += crit(output[:,t,...].squeeze(), target[:,t,...].squeeze())
@@ -91,24 +91,28 @@ def train():
 				start = time.time()
 
 			if step%100 == 0:
-			# 	# make video
-			 	print(step)
-			 	print("now generating video!")
-			 	video = cv2.VideoWriter()
-			 	success = video.open("generated_conv_lstm_video_{0}.avi".format(step), fourcc, 4, (180, 180), True)
-			# 	hidden_state = model.init_hidden(batch_size)
-			 	model.eval()
-				output = model(images[0].unsqueeze(0), sequence=None)
+				try:
+					#make video
+					print(step)
+					print("now generating video!")
+					video = cv2.VideoWriter()
+					success = video.open("video/generated_conv_lstm_video_{0}.avi".format(step), fourcc, 4, (180, 180), False)
+				# 	hidden_state = model.init_hidden(batch_size)
+					model.eval()
+					output = model(images[0].unsqueeze(0), sequence=None, itr=10)
+					#output = model(test , sequence=None, itr=10)
+					output = output.permute(0,1,4,3,2)
+					ims = output[0].data.cpu().numpy()
+					for i in xrange(ims.shape[0]):
+						x_1_r = np.uint8(np.maximum(ims[i,:,:,:], 0) * 255)
+						new_im = cv2.resize(x_1_r, (180,180))
+						video.write(new_im)
+					video.release()
+						
 
-			 	#ims = torch.cat(output,1).permute(0,1,4,3,2)
-			 	ims = ims[0].data.cpu().numpy()
-			 	for i in xrange(31):
-			 		x_1_r = np.uint8(np.maximum(ims[i,:,:,:], 0) * 255)
-			 		new_im = cv2.resize(x_1_r, (180,180))
-			 		video.write(new_im)
-			 	video.release()
-				model.train()
-
+					model.train()
+				except Exception,x:
+					print x
 			del images, seq_input, target, loss
 
 
