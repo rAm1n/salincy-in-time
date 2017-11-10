@@ -35,8 +35,11 @@ class SpatioTemporalSaliency(nn.Module):
 			out_seq, lstm_out = self.Custom_CLSTM(sequence, lstm_out[1])
 			tmp = torch.cat((out_im, out_seq), dim=1)
 			out = list()
+			b , t, c, h , w = tmp.size()
 			for t in xrange(tmp.size(1)):
-				out.append(F.sigmoid(tmp[:,t,...]))
+				q = F.log_softmax(tmp[:,t,...].contiguous().view(b, -1))
+				out.append(q.view(b,c,h,w))
+				#out.append(F.sigmoid(tmp[:,t,...]))
 			result = torch.stack(out, dim=1)
 			
 		else:
@@ -48,9 +51,10 @@ class SpatioTemporalSaliency(nn.Module):
 				out_seq.append(tmp_out)
 			out_seq = torch.cat(out_seq, dim=1)		
 			tmp = torch.cat((out_im ,  out_seq), dim=1)
+			b , t, c, h , w = tmp.size()
 			out = list()
 			for t in range(tmp.size(1)):
-				out.append(F.sigmoid(tmp[:,t,...]))
+				out.append(F.softmax(tmp[:,t,...].contiguous().view(b,-1)).view(b,c,h,w))
 			result = torch.stack(out, dim=1)
 
 		return result

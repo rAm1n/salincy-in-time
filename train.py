@@ -23,7 +23,7 @@ seq_len=10
 num_balls = 2
 max_step = 200000
 seq_start = 5
-lr = 0.000001
+lr = 0.0001
 keep_prob = 0.8
 dtype = torch.cuda.FloatTensor
 torch.set_default_tensor_type('torch.cuda.FloatTensor')
@@ -43,8 +43,8 @@ def train():
 	print("let's bring on gpus!")
 	model = model.cuda()
 
-	#crit = nn.KLDivLoss()
-	crit = nn.MSELoss()
+	crit = nn.KLDivLoss()
+	#crit = nn.MSELoss()
 	optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 	# drop = nn.Dropout(keep_prob)
 	# hidden_state = model.init_hidden(batch_size)
@@ -96,16 +96,17 @@ def train():
 					print(step)
 					print("now generating video!")
 					video = cv2.VideoWriter()
-					success = video.open("video/generated_conv_lstm_video_{0}.avi".format(step), fourcc, 4, (180, 180), False)
+					success = video.open("video/generated_conv_lstm_video_{0}.avi".format(step), fourcc, 4, (32, 32), False)
 				# 	hidden_state = model.init_hidden(batch_size)
 					model.eval()
 					output = model(images[0].unsqueeze(0), sequence=None, itr=10)
 					#output = model(test , sequence=None, itr=10)
 					output = output.permute(0,1,4,3,2)
+					global ims
 					ims = output[0].data.cpu().numpy()
 					for i in xrange(ims.shape[0]):
 						x_1_r = np.uint8(np.maximum(ims[i,:,:,:], 0) * 255)
-						new_im = cv2.resize(x_1_r, (180,180))
+						new_im = cv2.resize(x_1_r, (32,32))
 						video.write(new_im)
 					video.release()
 						
