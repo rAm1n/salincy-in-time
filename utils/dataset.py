@@ -2,6 +2,7 @@
 
 
 import json
+import pickle
 import wget
 from scipy.misc import imread
 import numpy as np
@@ -52,14 +53,14 @@ class SaliencyBundle():
 		# Starting Download
 		# for url in URLs[self.name]:
 		# 	self._download(url, unzip=True)
-		json_url  = self.config['json_directory'] + self.name.upper() + '.json'
-		self._download(json_url)
+		pkl_url  = self.config['json_directory'] + self.name.upper() + '.pkl'
+		self._download(pkl_url)
 
-		json_directory = os.path.join(self.config['data_path'], self.name)
+		pkl_directory = os.path.join(self.config['data_path'], self.name)
 		try:
-			path = os.path.join(json_directory, '{0}.json'.format(self.name))
+			path = os.path.join(pkl_directory, '{0}.pkl'.format(self.name))
 			f = open(path, 'r')
-			data = json.load(f)
+			data = pickle.load(f)
 			for url in data['url']:
 				self._download(url, extract=True)
 			f.close()
@@ -95,11 +96,11 @@ class SaliencyBundle():
 
 
 	def _load(self):
-		json_directory = os.path.join(self.config['data_path'], self.name)
+		pkl_directory = os.path.join(self.config['data_path'], self.name)
 		try:
-			path = os.path.join(json_directory, '{0}.json'.format(self.name))
+			path = os.path.join(pkl_directory, '{0}.pkl'.format(self.name))
 			f = open(path, 'r')
-			data = json.load(f)
+			data = pickle.load(f)
 			for key,value in data.iteritems():
 				setattr(SaliencyBundle, key, value)
 			# pre-processing data
