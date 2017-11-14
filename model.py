@@ -14,25 +14,36 @@ import time
 
 class SpatioTemporalSaliency(nn.Module):
 
-	def __init__(self, num_layers=2):
+	def __init__(self, num_layers=1, grid= 32 ):
 		super(SpatioTemporalSaliency, self).__init__()
 
 		self.encoder = make_encoder(pretrained=False)
 		self.Custom_CLSTM = Custom_ConvLstm()
-
-
+		self.img_embedding = nn.Linear(256 * 28 * 28, grid * grid)
+		self.seq_embedding = nn.Linear(grid*grid,  grid*grid)
+		self.grid = grid
+	
 	def _init_hidden_state(self):
 		return self.CLSTM._init_hidden()
 
 	def forward(self, images, sequence=None ,itr=30):
 		assert images.size()[2:] == (224, 224)
-
-		features = self.encoder(images)
-		out_im, lstm_out = self.Custom_CLSTM(features)
+		b , c, h, w = images.size()
+		features = self.encoder(images).view(b, -1)
+		img_emd = self.img_embedding(features)
+		img_emd = img_emd.view(b,1,1, self.grid, self.grid)
+		out_im, lstm_out = self.Custom_CLSTM(img_emd)
 
 		if not (sequence is None):
 			assert images.size(0) == sequence.size(0)
-			out_seq, lstm_out = self.Custom_CLSTM(sequence, lstm_out[1])
+			b , t, c, h, w = sequence.size()
+			seq_tmp = list()
+			for i in xrange(t):
+				seq_tmp.append(self.seq_embedding(sequence[:,i,...].contiguous().view(b,-1)).contiguous().view(b,c,h,w))
+			seq_emd = torch.stack(seq_tmp, 1)
+#			seq_emd = self.seq_embedding(sequence.view(b,-1)).view(b, t, c, h, w)
+			out_seq, lstm_out = self.Custom_CLSTM(seq_emd, lstm_out[1])
+#			out_seq, lstm_out = self.Custom_CLSTM(sequence, lstm_out[1])
 			tmp = torch.cat((out_im, out_seq), dim=1)
 			out = list()
 			b , t, c, h , w = tmp.size()
@@ -70,7 +81,7 @@ class SpatioTemporalSaliency(nn.Module):
 				m.weight.data.fill_(1)
 				m.bias.data.zero_()
 			elif isinstance(m, nn.Linear):
-				m.weight.data.normal_(0, 0.1)
+				m.weight.data.normal_(0, 1)
 				m.bias.data.zero_()
 		if vgg:
 			self.encoder.load_vgg_weights()

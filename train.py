@@ -23,7 +23,7 @@ seq_len=10
 num_balls = 2
 max_step = 200000
 seq_start = 5
-lr = 0.0001
+lr = 0.000001
 keep_prob = 0.8
 dtype = torch.cuda.FloatTensor
 torch.set_default_tensor_type('torch.cuda.FloatTensor')
@@ -39,7 +39,7 @@ def train():
 	print('building model')
 	model = SpatioTemporalSaliency(num_layers=1)
 	print('initializing')
-	model._initialize_weights()
+	model._initialize_weights(True)
 	print("let's bring on gpus!")
 	model = model.cuda()
 
@@ -51,7 +51,7 @@ def train():
 
 	print 'prep dataset'
 
-	data = make_batch(size=200, batch_size=4)
+	data = make_batch(size=1000, batch_size=4)
 
 	start = time.time()
 	l = list()
@@ -86,7 +86,7 @@ def train():
 
 
 			if step%10 == 0 and step != 0:
-				print(step, np.array(l).mean(), time.time()-start)
+				print(ep , step, np.array(l).mean(), time.time()-start)
 				l = list()
 				start = time.time()
 
@@ -96,7 +96,7 @@ def train():
 					print(step)
 					print("now generating video!")
 					video = cv2.VideoWriter()
-					success = video.open("video/generated_conv_lstm_video_{0}.avi".format(step), fourcc, 4, (32, 32), False)
+					success = video.open("video/generated_conv_lstm_video_{0}_{1}.avi".format(ep, step), fourcc, 4, (224, 224), False)
 				# 	hidden_state = model.init_hidden(batch_size)
 					model.eval()
 					output = model(images[0].unsqueeze(0), sequence=None, itr=10)
@@ -106,7 +106,7 @@ def train():
 					ims = output[0].data.cpu().numpy()
 					for i in xrange(ims.shape[0]):
 						x_1_r = np.uint8(np.maximum(ims[i,:,:,:], 0) * 255)
-						new_im = cv2.resize(x_1_r, (32,32))
+						new_im = cv2.resize(x_1_r, (224,224))
 						video.write(new_im)
 					video.release()
 						

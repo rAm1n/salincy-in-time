@@ -26,23 +26,24 @@ class Encoder(nn.Module):
 		self.features = features
 		out_channels = self.features[-3].out_channels
 		self.num_classes = num_classes
-		self.embedding = nn.Sequential(
-			nn.Linear(out_channels * 28 * 28, num_classes),
+#		self.embedding = nn.Sequential(
+#			nn.Linear(out_channels * 28 * 28, num_classes),
 #			nn.ReLU(True),
 #			nn.Dropout(),
 #			nn.Linear(4096, 4096),
 #			nn.ReLU(True),
 #			nn.Dropout(),
 #			nn.Linear(4096, num_classes),
-		)
+#		)
 #		self._initialize_weights()
 
 	def forward(self, input):
 		x = self.features(input)
-		x = x.view(x.size(0), -1)
-		x = self.embedding(x)
-		h = w = int(math.sqrt(self.num_classes))
-		return x.view(x.size(0), 1, 1, h, w)
+		return x
+#		x = x.view(x.size(0), -1)
+#		x = self.embedding(x)
+#		h = w = int(math.sqrt(self.num_classes))
+#		return x.view(x.size(0), 1, 1, h, w)
 
 	def _initialize_weights(self):
 		for m in self.modules():
