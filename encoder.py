@@ -17,7 +17,7 @@ model_urls = {
 	'vgg19_bn': 'https://download.pytorch.org/models/vgg19_bn-c79401a0.pth',
 }
 
-config = [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M']
+config = [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M']
 
 class Encoder(nn.Module):
 
@@ -89,7 +89,7 @@ def make_layers(cfg, batch_norm=False):
 
 
 
-def make_encoder(pretrained=False, config=[64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M'], **kwargs):
+def make_encoder(pretrained=False, config=[64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M'], **kwargs):
 	model = Encoder(make_layers(config), **kwargs)
 	if pretrained:
 		model.load_vgg_weights()

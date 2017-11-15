@@ -19,7 +19,7 @@ class SpatioTemporalSaliency(nn.Module):
 
 		self.encoder = make_encoder(pretrained=False)
 		self.Custom_CLSTM = Custom_ConvLstm()
-		self.img_embedding = nn.Linear(256 * 28 * 28, grid * grid)
+		self.img_embedding = nn.Linear(512 * 14 * 14, grid * grid)
 		self.seq_embedding = nn.Linear(grid*grid,  grid*grid)
 		self.grid = grid
 	

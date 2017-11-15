@@ -11,7 +11,7 @@ import random
 
 
 class Salicon():
-	def __init__(self, path='map.pkl', d_name='SALICON', im_size=(224,224), batch_size=4, min_len=50, max_len=550, grid_size=32, gamma=1):
+	def __init__(self, path='map.pkl', d_name='SALICON', im_size=(224,224), batch_size=2, min_len=50, max_len=550, grid_size=32, gamma=1):
 
 		self.path = path
 		self.d_name = d_name
@@ -24,40 +24,34 @@ class Salicon():
 		self.gamma = gamma
 		self.pointer = 0
 
-		# self.sets = [list(), list(), list()] #train - validation - test
-
 		normalize = transforms.Normalize(
 		   mean=[0.485, 0.456, 0.406],
 		   std=[0.229, 0.224, 0.225]
 		)
+
 		self.img_preprocess = transforms.Compose([
 		   transforms.Scale(im_size),
 		   transforms.ToTensor(),
 		   normalize
 		])
 
-		# self._load_data()
-		# self._preprocess()
-
-		self.preprocessed = False
 		self.images = list()
 		self.sequences = list()
 		self._map = {i:list() for i in range(self.min_len, self.max_len + 1)}
 
+
+
+
 	def initialize(self):
-		if not self.preprocessed:
-			self._load_data()
-			self.preprocess()
-			self.preprocessed = True
-		else:
-			# just to rebuild main, won't take long
-			self.reload_map()
+		self._load_data()
+		self._preprocess()
 
 
-	def reload_map(self, path):
+	def reload_map(self, path=None):
 		if not path:
 			path = self.path
-		self._map = pickle.load(path)
+		with open(path, 'r') as handle:
+			self._map = pickle.load(handle)
 
 
 	def _load_data(self):
@@ -73,44 +67,49 @@ class Salicon():
 			img = Image.open(img)
 			if img.mode == 'RGB':
 				p = self.img_preprocess(img)
-				# threshold on seq length
-				# tmp = list()
 				for s in self.raw_seq[img_idx]:
 					shape = s.shape
 					if (shape[0] >= self.min_len) and (shape[0] <= self.max_len):
-						# z = np.zeros((shape[0], self.grid_size, self.grid_size))
-						# s = s[:,:2]
-						# for idx, row in enumerate(s):
-						# 	h = int(self.grid_size * row[0])
-						# 	w = int(self.grid_size * row[1])
-							# z[idx][h][w] = 1
-							# z[idx] = gaussian_filter(z[idx], self.gamma)
-						# z = z.astype(np.float16)
-						self.sequence.append(s)
-						seq_idx = len(self.sequence) - 1
+						self.sequences.append(s)
+						seq_idx = len(self.sequences) - 1
 						self._map[shape[0]].append((img_idx,seq_idx))
 				self.images.append(p)
 
 		print('stage 3 - shuffling samples')
-		for key in self.main:
-			random.shuffle(self.main[key])
+		for key in self._map:
+			random.shuffle(self._map[key])
 
-
+		print('stage 4 - saving map')
+		with open(self.path, 'w') as handle:
+			pickle.dump(self._map, handle)
 
 
 	def next_batch(self):
 		batch = list()
 		while True:
-			if not self.main.keys():
-				self.initialize()
-			random_len = random.choice(self.main.keys())
-			if len(main[random_len]) > batch_size:
+			if not self._map.keys():
+				print('next epoch')
+				self.reload_map()
+			random_len = random.choice(self._map.keys())
+			if len(self._map[random_len]) >  self.batch_size:
 				break
 			else:
-				del main[random_len]
+				del self._map[random_len]
 
 		for i in range(self.batch_size):
-			img_idx , seq_idx = main[random_len].pop()
-			batch.append([self.images[img_idx], self.sequence[seq_idx]])
+			img_idx , seq_idx = self._map[random_len].pop()
+			seq = self.sequences[seq_idx][:,:2]
+			shape = seq.shape
+			z = np.zeros((int(shape[0]/4) + 1 , self.grid_size, self.grid_size))
+			for idx, row in enumerate(seq):
+				if (idx%4) == 0:
+					idx/=4
+					h = int(self.grid_size * row[0])
+					w = int(self.grid_size * row[1])
+					z[idx][h][w] = 1
+					z[idx] = gaussian_filter(z[idx], self.gamma)
+			z = z.astype(np.float16)
+			batch.append([self.images[img_idx], z])
 
 		return batch
+

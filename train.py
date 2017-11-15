@@ -9,6 +9,7 @@ import numpy as np
 import cv2
 import time
 from utils.data import make_batch
+from utils.salicon import Salicon
 import gc
 import scipy.misc
 
@@ -30,6 +31,7 @@ torch.set_default_tensor_type('torch.cuda.FloatTensor')
 fourcc = cv2.VideoWriter_fourcc(*'MJPG')
 
 epoch = 5
+iteration = 2000000
 
 test = scipy.misc.imread('test.jpg')
 test = Variable(torch.from_numpy(test)).permute(2,0,1).unsqueeze(0).unsqueeze(0)
@@ -51,70 +53,71 @@ def train():
 
 	print 'prep dataset'
 
-	data = make_batch(size=1000, batch_size=4)
-
+	d = Salicon()
+	d.initialize()
+	
 	start = time.time()
 	l = list()
-	for ep in xrange(epoch):
-		for step, batch in enumerate(data):
-			images = [img[0] for img in batch]
-			images = torch.stack(images)
+	for step in xrange(iteration):
+		batch = d.next_batch()
+		images = [img[0] for img in batch]
+		images = torch.stack(images)
 
-			seq = np.array([img[1] for img in batch], dtype=np.float32)
-			seq_input = torch.from_numpy(seq[:,1:,...]).unsqueeze(2)
-			target = torch.from_numpy(seq).unsqueeze(2)
+		seq = np.array([img[1] for img in batch], dtype=np.float32)
+		seq_input = torch.from_numpy(seq[:,1:,...]).unsqueeze(2)
+		target = torch.from_numpy(seq).unsqueeze(2)
 
-			images = Variable(images.cuda(), requires_grad=True)
-			seq_input = Variable(seq_input.cuda(), requires_grad=True)
-			target = Variable(target.cuda(), requires_grad=False)
+		images = Variable(images.cuda(), requires_grad=True)
+		seq_input = Variable(seq_input.cuda(), requires_grad=True)
+		target = Variable(target.cuda(), requires_grad=False)
 
-			#torch.cuda.synchronize()
-			output = model(images, seq_input)
-			loss = 0
-			for t in xrange(target.size(1)):
-				loss += crit(output[:,t,...].squeeze(), target[:,t,...].squeeze())
+		#torch.cuda.synchronize()
+		output = model(images, seq_input)
+		loss = 0
+		for t in xrange(target.size(1)):
+			loss += crit(output[:,t,...].squeeze(), target[:,t,...].squeeze())
 
+		try:
+			loss.backward()
+			optimizer.step()
+			optimizer.zero_grad()
+			l.append(loss.data[0])
+			torch.cuda.synchronize()
+		except Exception,x:
+			print x
+			return 0
+
+
+		if step%10 == 0 and step != 0:
+			print(step, np.array(l).mean(), time.time()-start)
+			l = list()
+			start = time.time()
+
+		if step%100 == 0:
 			try:
-				loss.backward()
-				optimizer.step()
-				optimizer.zero_grad()
-				l.append(loss.data[0])
-				torch.cuda.synchronize()
+				#make video
+				print(step)
+				print("now generating video!")
+				video = cv2.VideoWriter()
+				success = video.open("video/generated_conv_lstm_video_{0}.avi".format(step), fourcc, 4, (224, 224), False)
+			# 	hidden_state = model.init_hidden(batch_size)
+				model.eval()
+				output = model(images[0].unsqueeze(0), sequence=None, itr=100)
+				#output = model(test , sequence=None, itr=10)
+				output = output.permute(0,1,4,3,2)
+				global ims
+				ims = output[0].data.cpu().numpy()
+				for i in xrange(ims.shape[0]):
+					x_1_r = np.uint8(np.maximum(ims[i,:,:,:], 0) * 255)
+					new_im = cv2.resize(x_1_r, (224,224))
+					video.write(new_im)
+				video.release()
+					
+
+				model.train()
 			except Exception,x:
 				print x
-				return 0
-
-
-			if step%10 == 0 and step != 0:
-				print(ep , step, np.array(l).mean(), time.time()-start)
-				l = list()
-				start = time.time()
-
-			if step%100 == 0:
-				try:
-					#make video
-					print(step)
-					print("now generating video!")
-					video = cv2.VideoWriter()
-					success = video.open("video/generated_conv_lstm_video_{0}_{1}.avi".format(ep, step), fourcc, 4, (224, 224), False)
-				# 	hidden_state = model.init_hidden(batch_size)
-					model.eval()
-					output = model(images[0].unsqueeze(0), sequence=None, itr=10)
-					#output = model(test , sequence=None, itr=10)
-					output = output.permute(0,1,4,3,2)
-					global ims
-					ims = output[0].data.cpu().numpy()
-					for i in xrange(ims.shape[0]):
-						x_1_r = np.uint8(np.maximum(ims[i,:,:,:], 0) * 255)
-						new_im = cv2.resize(x_1_r, (224,224))
-						video.write(new_im)
-					video.release()
-						
-
-					model.train()
-				except Exception,x:
-					print x
-			del images, seq_input, target, loss
+		del images, seq_input, target, loss
 
 
 
