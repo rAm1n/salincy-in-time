@@ -11,7 +11,7 @@ import random
 
 
 class Salicon():
-	def __init__(self, path='', d_name='SALICON', im_size=(224,224), batch_size=4, min_len=50, max_len=550, grid_size=32, gamma=1):
+	def __init__(self, path='map.pkl', d_name='SALICON', im_size=(224,224), batch_size=4, min_len=50, max_len=550, grid_size=32, gamma=1):
 
 		self.path = path
 		self.d_name = d_name
@@ -36,8 +36,29 @@ class Salicon():
 		   normalize
 		])
 
-		self._load_data()
-		self._preprocess()
+		# self._load_data()
+		# self._preprocess()
+
+		self.preprocessed = False
+		self.images = list()
+		self.sequences = list()
+		self._map = {i:list() for i in range(self.min_len, self.max_len + 1)}
+
+	def initialize(self):
+		if not self.preprocessed:
+			self._load_data()
+			self.preprocess()
+			self.preprocessed = True
+		else:
+			# just to rebuild main, won't take long
+			self.reload_map()
+
+
+	def reload_map(self, path):
+		if not path:
+			path = self.path
+		self._map = pickle.load(path)
+
 
 	def _load_data(self):
 		print('stage 1 - start loading data.')
@@ -47,50 +68,49 @@ class Salicon():
 
 
 	def _preprocess(self):
-		self.images = list()
-		self.sequence = list()
-		self.main = {i:list() for i in range(self.min_len, self.max_len + 1)}
-		#########################################
-		# removing images with only 1 channel.
 		print('stage 2 - cleaning dataset - preprocess')
 		for img_idx, img in enumerate(self.stim_path):
 			img = Image.open(img)
 			if img.mode == 'RGB':
 				p = self.img_preprocess(img)
 				# threshold on seq length
-				tmp = list()
+				# tmp = list()
 				for s in self.raw_seq[img_idx]:
 					shape = s.shape
 					if (shape[0] >= self.min_len) and (shape[0] <= self.max_len):
-						z = np.zeros((shape[0], self.grid_size, self.grid_size))
-						s = s[:,:2]
-						for idx, row in enumerate(s):
-							h = int(self.grid_size * row[0])
-							w = int(self.grid_size * row[1])
-							z[idx][h][w] = 1
-							z[idx] = gaussian_filter(z[idx], self.gamma)
-						z = z.astype(np.float16)
-						self.main[shape[0]].append((img_idx,z))
+						# z = np.zeros((shape[0], self.grid_size, self.grid_size))
+						# s = s[:,:2]
+						# for idx, row in enumerate(s):
+						# 	h = int(self.grid_size * row[0])
+						# 	w = int(self.grid_size * row[1])
+							# z[idx][h][w] = 1
+							# z[idx] = gaussian_filter(z[idx], self.gamma)
+						# z = z.astype(np.float16)
+						self.sequence.append(s)
+						seq_idx = len(self.sequence) - 1
+						self._map[shape[0]].append((img_idx,seq_idx))
 				self.images.append(p)
+
 		print('stage 3 - shuffling samples')
 		for key in self.main:
 			random.shuffle(self.main[key])
 
 
 
+
 	def next_batch(self):
 		batch = list()
 		while True:
+			if not self.main.keys():
+				self.initialize()
 			random_len = random.choice(self.main.keys())
-			if (random_len > (self.max_len + 1)) or (random_len < self.min_len):
-				continue
 			if len(main[random_len]) > batch_size:
 				break
 			else:
-				del main[random_len]				
+				del main[random_len]
 
 		for i in range(self.batch_size):
-			img_idx , z = main[random_len].pop()
-			batch.append([self.images[img_idx], z])
+			img_idx , seq_idx = main[random_len].pop()
+			batch.append([self.images[img_idx], self.sequence[seq_idx]])
 
 		return batch
