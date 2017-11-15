@@ -11,10 +11,10 @@ import random
 
 
 class Salicon():
-	def __init__(self, path='', d_name='SALICON', im_size=(224,224), batch_size=4, min_len=5, max_len=30, grid_size=224, gamma=1):
+	def __init__(self, path='', d_name='SALICON', im_size=(224,224), batch_size=4, min_len=50, max_len=550, grid_size=32, gamma=1):
 
 		self.path = path
-		self.d_name = 'SALICON'
+		self.d_name = d_name
 		self.im_size = im_size
 		# self.set_size = set_size
 		self.batch_size = batch_size
@@ -39,9 +39,9 @@ class Salicon():
 		self._load_data()
 		self._preprocess()
 
-	def _load_data(self)
+	def _load_data(self):
 		print('stage 1 - start loading data.')
-		self.d = SaliencyBundle(d_name)
+		self.d = SaliencyBundle(self.d_name)
 		self.raw_seq = list(self.d.get('sequence', percentile=True, modify='remove'))
 		self.stim_path = self.d.get('stimuli_path')
 
@@ -49,7 +49,7 @@ class Salicon():
 	def _preprocess(self):
 		self.images = list()
 		self.sequence = list()
-		self.main = main = {i:list() for i in range(min_len, max_len + 1)}
+		self.main = {i:list() for i in range(self.min_len, self.max_len + 1)}
 		#########################################
 		# removing images with only 1 channel.
 		print('stage 2 - cleaning dataset - preprocess')
@@ -62,27 +62,35 @@ class Salicon():
 				for s in self.raw_seq[img_idx]:
 					shape = s.shape
 					if (shape[0] >= self.min_len) and (shape[0] <= self.max_len):
-						z = np.zeros((shape[0], self.grid_size, self.grid_size), dtype=np.float16)
+						z = np.zeros((shape[0], self.grid_size, self.grid_size))
 						s = s[:,:2]
 						for idx, row in enumerate(s):
-							h = int(grid_size * row[0])
-							w = int(grid_size * row[1])
+							h = int(self.grid_size * row[0])
+							w = int(self.grid_size * row[1])
 							z[idx][h][w] = 1
-							z[idx] = gaussian_filter(z[idx], gamma)
-						main[shape[0]].append((img_idx,z))
-
+							z[idx] = gaussian_filter(z[idx], self.gamma)
+						z = z.astype(np.float16)
+						self.main[shape[0]].append((img_idx,z))
 				self.images.append(p)
-
-		for key in main:
-			random.shuffle(main[key])
+		print('stage 3 - shuffling samples')
+		for key in self.main:
+			random.shuffle(self.main[key])
 
 
 
 	def next_batch(self):
 		batch = list()
+		while True:
+			random_len = random.choice(self.main.keys())
+			if (random_len > (self.max_len + 1)) or (random_len < self.min_len):
+				continue
+			if len(main[random_len]) > batch_size:
+				break
+			else:
+				del main[random_len]				
+
 		for i in range(self.batch_size):
-			random_len = random.randrange(self.min_len, self.max_len + 1)
-			img_idx , z = main[key].pop()
+			img_idx , z = main[random_len].pop()
 			batch.append([self.images[img_idx], z])
 
 		return batch
