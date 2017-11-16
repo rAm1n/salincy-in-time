@@ -29,10 +29,15 @@ class SpatioTemporalSaliency(nn.Module):
 	def forward(self, images, sequence=None ,itr=30):
 		assert images.size()[2:] == (224, 224)
 		b , c, h, w = images.size()
+
 		features = self.encoder(images).view(b, -1)
 		img_emd = self.img_embedding(features)
 		img_emd = img_emd.view(b,1,1, self.grid, self.grid)
-		out_im, lstm_out = self.Custom_CLSTM(img_emd)
+
+		zeros = Variable(torch.zeros(b, 1, self.grid, self.grid)).cuda()
+		zero_emd = self.seq_embedding(zeros.contiguous().view(b,-1)).contiguous().view(b,1,1,self.grid,self.grid)
+
+		out_im, lstm_out = self.Custom_CLSTM( torch.cat((img_emd, zero_emd), dim=2))
 
 		if not (sequence is None):
 			assert images.size(0) == sequence.size(0)
@@ -40,7 +45,9 @@ class SpatioTemporalSaliency(nn.Module):
 			seq_tmp = list()
 			for i in xrange(t):
 				seq_tmp.append(self.seq_embedding(sequence[:,i,...].contiguous().view(b,-1)).contiguous().view(b,c,h,w))
-			seq_emd = torch.stack(seq_tmp, 1)
+
+			seq_emd = torch.cat((img_emd.repeat(1,t,1,1,1), torch.stack(seq_tmp, 1)) , dim=2) 			
+	
 #			seq_emd = self.seq_embedding(sequence.view(b,-1)).view(b, t, c, h, w)
 			out_seq, lstm_out = self.Custom_CLSTM(seq_emd, lstm_out[1])
 #			out_seq, lstm_out = self.Custom_CLSTM(sequence, lstm_out[1])
@@ -56,10 +63,13 @@ class SpatioTemporalSaliency(nn.Module):
 		else:
 			out_seq = list()
 			tmp_out = out_im
+			b , c , h , w = out_im.size()
 			hidden_c = [None, None]
 			for t in range(itr):
-				tmp_out , hidden_c = self.Custom_CLSTM(tmp_out , hidden_c[1])
+				tmp_soft = F.softmax(tmp_out.contiguous().view(b,-1)).view(b,c,h,w)
+				tmp_out , hidden_c = self.Custom_CLSTM(torchtmp_out , hidden_c[1])
 				out_seq.append(tmp_out)
+
 			out_seq = torch.cat(out_seq, dim=1)		
 			tmp = torch.cat((out_im ,  out_seq), dim=1)
 			b , t, c, h , w = tmp.size()

@@ -11,7 +11,7 @@ import random
 
 
 class Salicon():
-	def __init__(self, path='map.pkl', d_name='SALICON', im_size=(224,224), batch_size=2, min_len=50, max_len=550, grid_size=32, gamma=1):
+	def __init__(self, path='map.pkl', size = 10000, d_name='SALICON', im_size=(224,224), batch_size=2, min_len=50, max_len=550, grid_size=32, gamma=1):
 
 		self.path = path
 		self.d_name = d_name
@@ -23,6 +23,7 @@ class Salicon():
 		self.grid_size = grid_size
 		self.gamma = gamma
 		self.pointer = 0
+		self.size = size
 
 		normalize = transforms.Normalize(
 		   mean=[0.485, 0.456, 0.406],
@@ -57,8 +58,8 @@ class Salicon():
 	def _load_data(self):
 		print('stage 1 - start loading data.')
 		self.d = SaliencyBundle(self.d_name)
-		self.raw_seq = list(self.d.get('sequence', percentile=True, modify='remove'))
-		self.stim_path = self.d.get('stimuli_path')
+		self.raw_seq = list(self.d.get('sequence', percentile=True, modify='remove'))[:self.size]
+		self.stim_path = self.d.get('stimuli_path')[:self.size]
 
 
 	def _preprocess(self):

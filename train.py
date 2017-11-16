@@ -53,7 +53,7 @@ def train():
 
 	print 'prep dataset'
 
-	d = Salicon()
+	d = Salicon(size=200)
 	d.initialize()
 	
 	start = time.time()
@@ -78,9 +78,9 @@ def train():
 			loss += crit(output[:,t,...].squeeze(), target[:,t,...].squeeze())
 
 		try:
+			optimizer.zero_grad()
 			loss.backward()
 			optimizer.step()
-			optimizer.zero_grad()
 			l.append(loss.data[0])
 			torch.cuda.synchronize()
 		except Exception,x:
@@ -93,7 +93,7 @@ def train():
 			l = list()
 			start = time.time()
 
-		if step%100 == 0:
+		if step%100 == 0 and step !=0:
 			try:
 				#make video
 				print(step)

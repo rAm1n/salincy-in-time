@@ -180,14 +180,14 @@ class Custom_ConvLstm(nn.Module):
 
 		# self.input_linear = nn.Linear()
 
-		self.CLSTM = ConvLSTM((32,32), 1, [64], [(3,3)], 1,
+		self.CLSTM = ConvLSTM((32,32), 2, [64], [(3,3)], 1,
 				 batch_first=True, bias=True, return_all_layers=True)
 		self.conv_out = nn.Conv2d(64, 1, kernel_size=3, padding=1, bias=False)
 
 
 	def forward(self, input, hidden_c=None):
 		_b, _t, _c , _h, _w = input.size()
-		assert (_c, _h, _w) == (1 , 32, 32)
+		assert (_c, _h, _w) == (2 , 32, 32)
 
 		conv_output = list()
 		output, hidden_c = self.CLSTM(input, hidden_c)
