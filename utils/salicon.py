@@ -8,37 +8,37 @@ import numpy as np
 import pickle
 from scipy.ndimage.filters import gaussian_filter
 import random
-
+import os
 
 class Salicon():
-	def __init__(self, path='map.pkl', size = 10000, d_name='SALICON', im_size=(224,224), batch_size=2, min_len=50, max_len=550, grid_size=32, gamma=1):
+	def __init__(self, path='tmp/', d_name='SALICON', im_size=(224,224), min_len=50, max_len=550, seq_len= 16, grid_size=32, gamma=1, max_thread=8):
 
 		self.path = path
 		self.d_name = d_name
 		self.im_size = im_size
-		# self.set_size = set_size
-		self.batch_size = batch_size
 		self.min_len = min_len
 		self.max_len = max_len
+		self.seq_len = seq_len
 		self.grid_size = grid_size
 		self.gamma = gamma
-		self.pointer = 0
-		self.size = size
+		self.max_thread= max_thread
 
-		normalize = transforms.Normalize(
-		   mean=[0.485, 0.456, 0.406],
-		   std=[0.229, 0.224, 0.225]
-		)
+		self.sizes = {'train': [0,0.9], 'validation': [.9, 0.95], 'test': [.095, 1]}
 
-		self.img_preprocess = transforms.Compose([
+		self.index = {'train':0, 'validation':0, 'test': 0}
+
+
+		self.img_processor = transforms.Compose([
 		   transforms.Scale(im_size),
 		   transforms.ToTensor(),
-		   normalize
+		   transforms.Normalize(
+		   mean=[0.485, 0.456, 0.406],
+		   std=[0.229, 0.224, 0.225]
+			)
 		])
 
-		self.images = list()
-		self.sequences = list()
-		self._map = {i:list() for i in range(self.min_len, self.max_len + 1)}
+		self.images = dict({key:list() for key in ['train','validation','test']})
+		self._map = dict({key:list() for key in ['train','validation','test']})
 
 
 
@@ -47,70 +47,96 @@ class Salicon():
 		self._load_data()
 		self._preprocess()
 
-
-	def reload_map(self, path=None):
-		if not path:
-			path = self.path
-		with open(path, 'r') as handle:
-			self._map = pickle.load(handle)
+	def load(self):
+		# check if files exists
+		path = os.path.join(self.path, 'map.pkl')
+		if os.path.exist(path):
+			with open(path, 'r') as handle:
+				self._map = pickle.load(handle)
+			path = os.path.join(self.path, 'images.pkl')
+			if os.path.exist( path):
+				with open(path, 'r') as handle:
+					self.images = pickle.load(handle)
+		else:
+			self.initialize()
 
 
 	def _load_data(self):
-		print('stage 1 - start loading data.')
-		self.d = SaliencyBundle(self.d_name)
-		self.raw_seq = list(self.d.get('sequence', percentile=True, modify='remove'))[:self.size]
-		self.stim_path = self.d.get('stimuli_path')[:self.size]
+		print('start loading data.')
+		self.dataset = SaliencyBundle(self.d_name)
+		raw_seq = self.dataset.get('sequence', percentile=True, modify='remove')
+		stim_path = self.dataset.get('stimuli_path')
+
+		total_size = len(stim_path)
+
+		print('spliting data')
+		self.raw_seq = dict({key:list() for key in ['train','validation','test']})
+		self.stim_path = dict({key:list() for key in ['train','validation','test']})
+
+		for key in self.sizes:
+			index = (int(self.sizes[key][0] * total_size), int(self.sizes[key][1] * total_size))
+			self.raw_seq[key] = raw_seq[ index[0] : index[1]]
+			self.stim_path[key] = stim_path[ index[0] : index[1]]
 
 
 	def _preprocess(self):
-		print('stage 2 - cleaning dataset - preprocess')
-		for img_idx, img in enumerate(self.stim_path):
-			img = Image.open(img)
-			if img.mode == 'RGB':
-				p = self.img_preprocess(img)
-				for s in self.raw_seq[img_idx]:
-					shape = s.shape
-					if (shape[0] >= self.min_len) and (shape[0] <= self.max_len):
-						self.sequences.append(s)
-						seq_idx = len(self.sequences) - 1
-						self._map[shape[0]].append((img_idx,seq_idx))
-				self.images.append(p)
+		print('stage 2 - preprocessing - takes a while, be patient.')
+		for key in self.stim_path:
+			# choosing set -> train, validation, test
+			dataset = self.stim_path[key]
+			for img_idx, img in enumerate(dataset):
+				img = Image.open(img)
+				if img.mode == 'RGB':
+					img_processed = self.img_preprocess(img)
+					self.images.append(img_processed)
+					for seq in self.raw_seq[key][img_idx]:
+						shape = s.shape
+						if (shape[0] >= self.min_len) and (shape[0] <= self.max_len):
+							mini_seq = list()
+							for fix in seq:
+								if fix != old_fix:
+									mini_seq.append(fix)
+									old_fix = fix
+									if len(mini_seq) == self.seq_len:
+										self._map[key].append((img_idx, np.array(mini_seq, dtype=np.float16)))
+										mini_seq = list()
 
-		print('stage 3 - shuffling samples')
-		for key in self._map:
-			random.shuffle(self._map[key])
+			shuffle(self._map[key])
 
 		print('stage 4 - saving map')
-		with open(self.path, 'w') as handle:
+		with open(os.path.join(self.path, 'map.pkl'), 'w') as handle:
 			pickle.dump(self._map, handle)
+		with open(os.path.join(self.path, 'images.pkl'), 'w') as handle:
+			pickle.dump(self.images, handle)
 
 
-	def next_batch(self):
+	def next_batch(self, batch_size=2, mode='train'):
 		batch = list()
-		while True:
-			if not self._map.keys():
-				print('next epoch')
-				self.reload_map()
-			random_len = random.choice(self._map.keys())
-			if len(self._map[random_len]) >  self.batch_size:
-				break
-			else:
-				del self._map[random_len]
+		for i in range(batch_size):
+			index = self.index[mode]
+			img_idx , seq = self._map[mode][index]
+			raw_seq = seq[:,:2]
 
-		for i in range(self.batch_size):
-			img_idx , seq_idx = self._map[random_len].pop()
-			seq = self.sequences[seq_idx][:,:2]
-			shape = seq.shape
-			z = np.zeros((int(shape[0]/4) + 1 , self.grid_size, self.grid_size))
-			for idx, row in enumerate(seq):
-				if (idx%4) == 0:
-					idx/=4
-					h = int(self.grid_size * row[0])
-					w = int(self.grid_size * row[1])
-					z[idx][h][w] = 1
-					z[idx] = gaussian_filter(z[idx], self.gamma)
-			z = z.astype(np.float16)
-			batch.append([self.images[img_idx], z])
+
+			seq = list() #processed
+			old_fix = (0,0)
+
+			for idx, fix in enumerate(raw_seq):
+					z = np.random.uniform(low=0, high=0.1, size=( self.grid_size, self.grid_size))
+					h = int(self.grid_size * fix[0])
+					w = int(self.grid_size * fix[1])
+					z[h][w] = 1
+					z = gaussian_filter(z, self.gamma)
+					seq.append(z / z.sum())
+
+			batch.append([self.images[img_idx], np.array(seq, dtype=np.float16)])
+
+			# updating index
+			self.index[mode] += 1
+			if self.index[mode] >= len(self.images[mode]):
+				self.index[mode] = 0
+
+
 
 		return batch
 
