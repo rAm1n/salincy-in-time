@@ -9,18 +9,19 @@ from encoder import make_encoder
 import numpy as np
 import cv2
 import time
-
+import os
 
 
 class SpatioTemporalSaliency(nn.Module):
 
-	def __init__(self, num_layers=1, grid= 32 ):
+	def __init__(self, num_layers=1, grid= 32):
 		super(SpatioTemporalSaliency, self).__init__()
 
 		self.encoder = make_encoder(pretrained=False)
 		self.Custom_CLSTM = Custom_ConvLstm()
-		self.img_embedding = nn.Linear(512 * 14 * 14, grid * grid)
-		self.seq_embedding = nn.Linear(grid*grid,  grid*grid)
+		#self.img_embedding = nn.nn.Linear(512 * 14 * 14, grid * grid)
+		self.img_embedding = nn.Sequential(nn.Linear( 512 * 14 * 14, grid * grid), nn.Dropout(.75))
+		self.seq_embedding = nn.Sequential(nn.Linear( grid * grid, grid * grid), nn.Dropout(.75))
 		self.grid = grid
 	
 	def _init_hidden_state(self):
@@ -28,50 +29,50 @@ class SpatioTemporalSaliency(nn.Module):
 
 	def forward(self, images, sequence=None ,itr=30):
 		assert images.size()[2:] == (224, 224)
+
 		b , c, h, w = images.size()
-
 		features = self.encoder(images).view(b, -1)
-		img_emd = self.img_embedding(features)
-		img_emd = img_emd.view(b,1,1, self.grid, self.grid)
+		img_emd = self.img_embedding(features).view(b ,1 ,1 ,self.grid, self.grid)
+		
 
-		zeros = Variable(torch.zeros(b, 1, self.grid, self.grid)).cuda()
-		zero_emd = self.seq_embedding(zeros.contiguous().view(b,-1)).contiguous().view(b,1,1,self.grid,self.grid)
+		out_im, lstm_out = self.Custom_CLSTM(img_emd)
 
-		out_im, lstm_out = self.Custom_CLSTM( torch.cat((img_emd, zero_emd), dim=2))
-
-		if not (sequence is None):
+		if not (sequence is None):  # training mode
 			assert images.size(0) == sequence.size(0)
 			b , t, c, h, w = sequence.size()
-			seq_tmp = list()
+			# re-weighting sequence inputs
+			seq_emd = list()
 			for i in xrange(t):
-				seq_tmp.append(self.seq_embedding(sequence[:,i,...].contiguous().view(b,-1)).contiguous().view(b,c,h,w))
+				seq_emd.append(self.seq_embedding(sequence[:,i,...].contiguous().view(b,-1)).contiguous().view(b,c,h,w))
+			seq_emd = torch.stack(seq_emd, 1)
 
-			seq_emd = torch.cat((img_emd.repeat(1,t,1,1,1), torch.stack(seq_tmp, 1)) , dim=2) 			
-	
-#			seq_emd = self.seq_embedding(sequence.view(b,-1)).view(b, t, c, h, w)
+			# running LSTM model for sequences
 			out_seq, lstm_out = self.Custom_CLSTM(seq_emd, lstm_out[1])
-#			out_seq, lstm_out = self.Custom_CLSTM(sequence, lstm_out[1])
-			tmp = torch.cat((out_im, out_seq), dim=1)
-			out = list()
-			b , t, c, h , w = tmp.size()
-			for t in xrange(tmp.size(1)):
-				q = F.log_softmax(tmp[:,t,...].contiguous().view(b, -1))
-				out.append(q.view(b,c,h,w))
+			# tmp = torch.cat((out_im, out_seq), dim=1)
+			# applying softmax at the end.
+
+			result = list()
+			# b , t, c, h , w = tmp.size()
+			b , t, c, h, w = out_seq.size()
+			# for t in xrange(tmp.size(1)):
+			for t in xrange(out_seq.size(1)):
+				q = F.log_softmax(out_seq[:,t,...].contiguous().view(b, -1))
+				result.append(q.view(b,c,h,w))
 				#out.append(F.sigmoid(tmp[:,t,...]))
-			result = torch.stack(out, dim=1)
+
+			result = torch.stack(result, dim=1)
 			
 		else:
+
 			out_seq = list()
 			tmp_out = out_im
-			b , c , h , w = out_im.size()
 			hidden_c = [None, None]
 			for t in range(itr):
-				tmp_soft = F.softmax(tmp_out.contiguous().view(b,-1)).view(b,c,h,w)
-				tmp_out , hidden_c = self.Custom_CLSTM(torchtmp_out , hidden_c[1])
+				tmp_out , hidden_c = self.Custom_CLSTM(tmp_out , hidden_c[1])
 				out_seq.append(tmp_out)
-
 			out_seq = torch.cat(out_seq, dim=1)		
 			tmp = torch.cat((out_im ,  out_seq), dim=1)
+			# tmp = out_seq
 			b , t, c, h , w = tmp.size()
 			out = list()
 			for t in range(tmp.size(1)):
@@ -84,15 +85,37 @@ class SpatioTemporalSaliency(nn.Module):
 		for m in self.modules():
 			if isinstance(m, nn.Conv2d):
 				n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-				m.weight.data.normal_(0, np.sqrt(2. / n))
+				m.weight.data.normal_(0, np.sqrt(4. / n))
 				if m.bias is not None:
 					m.bias.data.zero_()
 			elif isinstance(m, nn.BatchNorm2d):
 				m.weight.data.fill_(1)
 				m.bias.data.zero_()
 			elif isinstance(m, nn.Linear):
-				m.weight.data.normal_(0, 1)
+				#m.weight.data.normal_(0, 1)
+				torch.nn.init.xavier_uniform(m.weight.data)
 				m.bias.data.zero_()
 		if vgg:
 			self.encoder.load_vgg_weights()
+					
+
+	def save_checkpoint(self, state, ep, step, max_keep=15, path='/media/ramin/monster/models/sequence/'):
+		filename = os.path.join(path, 'ck-{0}-{1}.pth.tar'.format(ep, step))
+		torch.save(state, os.path.join(path, 'ck-last.path.tar'))
+		torch.save(state, filename)
+		def sorted_ls(path):
+    			mtime = lambda f: os.stat(os.path.join(path, f)).st_mtime
+    			return list(sorted(os.listdir(path), key=mtime))
+		files = sorted_ls(path)[:-max_keep]
+		for item in files:
+			os.remove(os.path.join(path, item))	
+
+	def load_checkpoint(self, path='/media/ramin/monster/models/sequence/', filename=None):
+		if not filename:
+			filename = os.path.join(path, 'ck-last.path.tar')	
+		else:
+			filename = os.path.join(path, filename)
+
+		self.load_state_dict(torch.load(filename))
+
 

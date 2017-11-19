@@ -5,9 +5,9 @@ from tqdm import tqdm
 import torchvision.transforms as transforms
 from tqdm import tqdm
 import numpy as np
-import pickle
+import hickle as pickle
 from scipy.ndimage.filters import gaussian_filter
-import random
+from random import shuffle
 import os
 
 class Salicon():
@@ -23,7 +23,7 @@ class Salicon():
 		self.gamma = gamma
 		self.max_thread= max_thread
 
-		self.sizes = {'train': [0,0.9], 'validation': [.9, 0.95], 'test': [.095, 1]}
+		self.sizes = {'train': [0,0.9], 'validation': [.9, 0.95], 'test': [.95, 1]}
 
 		self.index = {'train':0, 'validation':0, 'test': 0}
 
@@ -38,6 +38,7 @@ class Salicon():
 		])
 
 		self.images = dict({key:list() for key in ['train','validation','test']})
+		self.sequences = dict({key:list() for key in ['train','validation','test']})
 		self._map = dict({key:list() for key in ['train','validation','test']})
 
 
@@ -50,13 +51,20 @@ class Salicon():
 	def load(self):
 		# check if files exists
 		path = os.path.join(self.path, 'map.pkl')
-		if os.path.exist(path):
+		if os.path.exists(path):
 			with open(path, 'r') as handle:
 				self._map = pickle.load(handle)
+
 			path = os.path.join(self.path, 'images.pkl')
-			if os.path.exist( path):
+			if os.path.exists( path):
 				with open(path, 'r') as handle:
 					self.images = pickle.load(handle)
+
+                        path = os.path.join(self.path, 'sequences.pkl')
+                        if os.path.exists( path):
+                                with open(path, 'r') as handle:
+                                        self.sequences = pickle.load(handle)
+
 		else:
 			self.initialize()
 
@@ -64,8 +72,8 @@ class Salicon():
 	def _load_data(self):
 		print('start loading data.')
 		self.dataset = SaliencyBundle(self.d_name)
-		raw_seq = self.dataset.get('sequence', percentile=True, modify='remove')
-		stim_path = self.dataset.get('stimuli_path')
+		raw_seq = self.dataset.get('sequence', percentile=True, modify='remove')[:5000]
+		stim_path = self.dataset.get('stimuli_path')[:5000]
 
 		total_size = len(stim_path)
 
@@ -80,63 +88,70 @@ class Salicon():
 
 
 	def _preprocess(self):
-		print('stage 2 - preprocessing - takes a while, be patient.')
+		print('preprocessing - takes a damn while, be patient...')
 		for key in self.stim_path:
 			# choosing set -> train, validation, test
 			dataset = self.stim_path[key]
 			for img_idx, img in enumerate(dataset):
 				img = Image.open(img)
 				if img.mode == 'RGB':
-					img_processed = self.img_preprocess(img)
-					self.images.append(img_processed)
+					img_processed = self.img_processor(img)
+					self.images[key].append(img_processed)
 					for seq in self.raw_seq[key][img_idx]:
-						shape = s.shape
+						shape = seq.shape
 						if (shape[0] >= self.min_len) and (shape[0] <= self.max_len):
 							mini_seq = list()
+							old_fix = (0,0)
 							for fix in seq:
+								h = int(self.grid_size * fix[0])
+								w = int(self.grid_size * fix[1])
+								fix = (h,w)
 								if fix != old_fix:
 									mini_seq.append(fix)
 									old_fix = fix
 									if len(mini_seq) == self.seq_len:
-										self._map[key].append((img_idx, np.array(mini_seq, dtype=np.float16)))
+										self.sequences[key].append(np.array(mini_seq, dtype=np.int16))
+										self._map[key].append((img_idx, len(self.sequences[key]) -1 ))
 										mini_seq = list()
 
 			shuffle(self._map[key])
 
-		print('stage 4 - saving map')
-		with open(os.path.join(self.path, 'map.pkl'), 'w') as handle:
-			pickle.dump(self._map, handle)
-		with open(os.path.join(self.path, 'images.pkl'), 'w') as handle:
-			pickle.dump(self.images, handle)
+#		print('Saving map ...')
+#		with open(os.path.join(self.path, 'map.pkl'), 'w') as handle:
+#			pickle.dump(self._map, handle, compression='gzip')
+#		with open(os.path.join(self.path, 'images.pkl'), 'w') as handle:
+#			pickle.dump(self.images, handle, compression='gzip')
+#                with open(os.path.join(self.path, 'sequences.pkl'), 'w') as handle:
+#                       pickle.dump(self.sequences, handle, compression='gzip')
+
 
 
 	def next_batch(self, batch_size=2, mode='train'):
 		batch = list()
-		for i in range(batch_size):
-			index = self.index[mode]
-			img_idx , seq = self._map[mode][index]
-			raw_seq = seq[:,:2]
+		try:
+			for i in range(batch_size):
+				index = self.index[mode]
+				img_idx , seq_idx = self._map[mode][index]
+				raw_seq = self.sequences[mode][seq_idx][:,:2]
 
 
-			seq = list() #processed
-			old_fix = (0,0)
+				seq = list() #processed
 
-			for idx, fix in enumerate(raw_seq):
-					z = np.random.uniform(low=0, high=0.1, size=( self.grid_size, self.grid_size))
-					h = int(self.grid_size * fix[0])
-					w = int(self.grid_size * fix[1])
-					z[h][w] = 1
-					z = gaussian_filter(z, self.gamma)
-					seq.append(z / z.sum())
+				for idx, fix in enumerate(raw_seq):
+						z = np.random.uniform(low=0, high=0.005, size=( self.grid_size, self.grid_size))
+						z[fix[0]][fix[1]] = 2
+						z = gaussian_filter(z, self.gamma)
+						seq.append(z / z.sum())
 
-			batch.append([self.images[img_idx], np.array(seq, dtype=np.float16)])
+				batch.append([self.images[mode][img_idx], np.array(seq, dtype=np.float16)])
 
-			# updating index
-			self.index[mode] += 1
-			if self.index[mode] >= len(self.images[mode]):
-				self.index[mode] = 0
+				# updating index
+				self.index[mode] += 1
+				if self.index[mode] >= len(self.images[mode]):
+					self.index[mode] = 0
 
-
+		except Exception,x:
+			print x
 
 		return batch
 
