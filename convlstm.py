@@ -178,9 +178,9 @@ class Custom_ConvLstm(nn.Module):
 	def __init__(self):
 		super(Custom_ConvLstm, self).__init__()
 
-		self.CLSTM = ConvLSTM((32,32), 1, [32], [(3,3)], 1,
+		self.CLSTM = ConvLSTM((32,32), 1, [16 , 16], [(3,3) , (3,3) ], 2,
 				 batch_first=True, bias=True, return_all_layers=True)
-		self.conv_out = nn.Conv2d(32, 1, kernel_size=3, padding=1, bias=False)
+		self.conv_out = nn.Conv2d(16, 1, kernel_size=3, padding=1, bias=False)
 #		self.conv_out = nn.Sequential(
 #					nn.Conv2d(64, 32, kernel_size=3, padding=1, bias=True),
 #					nn.ReLU(inplace=True), 

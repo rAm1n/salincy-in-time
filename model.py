@@ -22,6 +22,7 @@ class SpatioTemporalSaliency(nn.Module):
 		#self.img_embedding = nn.nn.Linear(512 * 14 * 14, grid * grid)
 		self.img_embedding = nn.Sequential(nn.Linear( 512 * 14 * 14, grid * grid), nn.Dropout(.75))
 		self.seq_embedding = nn.Sequential(nn.Linear( grid * grid, grid * grid), nn.Dropout(.75))
+
 		self.grid = grid
 	
 	def _init_hidden_state(self):
@@ -52,15 +53,14 @@ class SpatioTemporalSaliency(nn.Module):
 			# applying softmax at the end.
 
 			result = list()
-			# b , t, c, h , w = tmp.size()
+			#b , t, c, h , w = tmp.size()
 			b , t, c, h, w = out_seq.size()
 			# for t in xrange(tmp.size(1)):
 			for t in xrange(out_seq.size(1)):
 				q = F.log_softmax(out_seq[:,t,...].contiguous().view(b, -1))
 				result.append(q.view(b,c,h,w))
-				#out.append(F.sigmoid(tmp[:,t,...]))
-
 			result = torch.stack(result, dim=1)
+			#result = out_seq
 			
 		else:
 
@@ -72,12 +72,12 @@ class SpatioTemporalSaliency(nn.Module):
 				out_seq.append(tmp_out)
 			out_seq = torch.cat(out_seq, dim=1)		
 			tmp = torch.cat((out_im ,  out_seq), dim=1)
-			# tmp = out_seq
 			b , t, c, h , w = tmp.size()
 			out = list()
 			for t in range(tmp.size(1)):
 				out.append(F.softmax(tmp[:,t,...].contiguous().view(b,-1)).view(b,c,h,w))
 			result = torch.stack(out, dim=1)
+			#result = tmp
 
 		return result
 

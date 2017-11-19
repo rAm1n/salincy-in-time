@@ -16,8 +16,8 @@ import scipy.misc
 
 num_features=10
 filter_size=3
-batch_size=32
-lr=0.0002
+batch_size=8
+lr=0.0000005
 B1=0.01
 B2=0.999
 eps=1e-5
@@ -38,10 +38,10 @@ def train():
 
 
 
-	crit = nn.KLDivLoss()
-	#crit = nn.MSELoss()
-	optimizer = torch.optim.Adam(model.parameters(), lr=lr, betas=(B1, B2), eps=eps)
-	#optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=0.9)
+	#crit = nn.KLDivLoss()
+	crit = nn.MSELoss()
+	#optimizer = torch.optim.Adam(model.parameters(), lr=lr, betas=(B1, B2), eps=eps)
+	optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=0.9)
 	#drop = nn.Dropout(keep_prob)
 	# hidden_state = model.init_hidden(batch_size)
         for param in model.encoder.parameters():
@@ -92,13 +92,13 @@ def train():
 				l = list()
 				start = time.time()
 
-			if step%500 == 0 and step !=0:
+			if step%1000 == 0 and step !=0:
 				try:
 					#make video
 					print(step)
 					print("now generating video!")
 					video = cv2.VideoWriter()
-					success = video.open("video/generated_conv_lstm_video_{0}_{1}.avi".format(ep, step), fourcc, 4, (224, 224), False)
+					success = video.open("video-kld/generated_conv_lstm_video_{0}_{1}.avi".format(ep, step), fourcc, 4, (224, 224), False)
 				# 	hidden_state = model.init_hidden(batch_size)
 					model.eval()
 					output = model(images[0].unsqueeze(0), sequence=None, itr=64)
@@ -117,7 +117,7 @@ def train():
 					print x
 
 			if step%20000 == 0:
-				model.save_checkpoint(model.state_dict(), ep, step)
+				model.save_checkpoint(model.state_dict(), ep, step, path='/media/ramin/monster/models/sequence-kld/')
 				
 			del images, seq_input, target, loss
 

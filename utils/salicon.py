@@ -116,6 +116,8 @@ class Salicon():
 
 			shuffle(self._map[key])
 
+		del self.raw_seq
+		del self.stim_path
 #		print('Saving map ...')
 #		with open(os.path.join(self.path, 'map.pkl'), 'w') as handle:
 #			pickle.dump(self._map, handle, compression='gzip')
