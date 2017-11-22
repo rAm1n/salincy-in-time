@@ -59,13 +59,13 @@ class SaliencyBundle():
 		pkl_directory = os.path.join(self.config['data_path'], self.name)
 		try:
 			path = os.path.join(pkl_directory, '{0}.pkl'.format(self.name))
-			f = open(path, 'r')
-			data = pickle.load(f)
+			f = open(path, 'rb')
+			data = pickle.load(f, encoding='latin1')
 			for url in data['url']:
 				self._download(url, extract=True)
 			f.close()
-		except Exception,x:
-			print x
+		except Exception as x:
+			print(x)
 
 		#loading data
 		self._load()
@@ -90,8 +90,8 @@ class SaliencyBundle():
 					tar.close()
 				os.remove(dst)
 
-		except Exception,x:
-			print x
+		except Exception as x:
+			print(x)
 			os.rmdir(directory)
 
 
@@ -99,14 +99,14 @@ class SaliencyBundle():
 		pkl_directory = os.path.join(self.config['data_path'], self.name)
 		try:
 			path = os.path.join(pkl_directory, '{0}.pkl'.format(self.name))
-			f = open(path, 'r')
-			data = pickle.load(f)
-			for key,value in data.iteritems():
+			f = open(path, 'rb')
+			data = pickle.load(f, encoding='latin1')
+			for key,value in data.items():
 				setattr(SaliencyBundle, key, value)
 			# pre-processing data
 			self.len = len(data)
-		except Exception,x:
-			print x
+		except Exception as x:
+			print(x)
 
 	def get(self, data_type, **kargs):
 		result = list()
@@ -170,7 +170,7 @@ class SaliencyBundle():
 			else:
 				try:
 					tmp = self.data[data_type]
-				except Exception,x:
+				except Exception as x:
 					return False
 			result.append(tmp)
 

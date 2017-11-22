@@ -43,20 +43,18 @@ class SpatioTemporalSaliency(nn.Module):
 			b , t, c, h, w = sequence.size()
 			# re-weighting sequence inputs
 			seq_emd = list()
-			for i in xrange(t):
+			for i in range(t):
 				seq_emd.append(self.seq_embedding(sequence[:,i,...].contiguous().view(b,-1)).contiguous().view(b,c,h,w))
 			seq_emd = torch.stack(seq_emd, 1)
 
 			# running LSTM model for sequences
 			out_seq, lstm_out = self.Custom_CLSTM(seq_emd, lstm_out[1])
-			# tmp = torch.cat((out_im, out_seq), dim=1)
+			out_seq = torch.cat((out_im, out_seq), dim=1)
 			# applying softmax at the end.
 
 			result = list()
-			#b , t, c, h , w = tmp.size()
 			b , t, c, h, w = out_seq.size()
-			# for t in xrange(tmp.size(1)):
-			for t in xrange(out_seq.size(1)):
+			for t in range(out_seq.size(1)):
 				q = F.log_softmax(out_seq[:,t,...].contiguous().view(b, -1))
 				result.append(q.view(b,c,h,w))
 			result = torch.stack(result, dim=1)
@@ -73,10 +71,10 @@ class SpatioTemporalSaliency(nn.Module):
 			out_seq = torch.cat(out_seq, dim=1)		
 			tmp = torch.cat((out_im ,  out_seq), dim=1)
 			b , t, c, h , w = tmp.size()
-			out = list()
+			result = list()
 			for t in range(tmp.size(1)):
-				out.append(F.softmax(tmp[:,t,...].contiguous().view(b,-1)).view(b,c,h,w))
-			result = torch.stack(out, dim=1)
+				result.append(F.softmax(tmp[:,t,...].contiguous().view(b,-1)).view(b,c,h,w))
+			result = torch.stack(result, dim=1)
 			#result = tmp
 
 		return result

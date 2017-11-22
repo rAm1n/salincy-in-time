@@ -8,7 +8,6 @@ from model import SpatioTemporalSaliency
 import numpy as np
 import cv2
 import time
-from utils.data import make_batch
 from utils.salicon import Salicon
 import gc
 import scipy.misc
@@ -17,7 +16,7 @@ import scipy.misc
 num_features=10
 filter_size=3
 batch_size=8
-lr=0.0000005
+lr=0.0005
 B1=0.01
 B2=0.999
 eps=1e-5
@@ -38,33 +37,32 @@ def train():
 
 
 
-	#crit = nn.KLDivLoss()
-	crit = nn.MSELoss()
-	#optimizer = torch.optim.Adam(model.parameters(), lr=lr, betas=(B1, B2), eps=eps)
-	optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=0.9)
-	#drop = nn.Dropout(keep_prob)
-	# hidden_state = model.init_hidden(batch_size)
-        for param in model.encoder.parameters():
-                param.requires_grad = False
+	crit = nn.KLDivLoss()
+	#crit = nn.MSELoss()
+	optimizer = torch.optim.Adam(model.parameters(), lr=lr, betas=(B1, B2), eps=eps)
+	#optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=0.9)
+	for param in model.encoder.parameters():
+			param.requires_grad = False
 
 
-	print 'prep dataset'
+	print('prep dataset')
 
 	d = Salicon()
 	d.load()
 	
 	start = time.time()
 	l = list()
-	for ep in xrange(epoch):
-		iteration = len(d._map['train']) / batch_size
-		for step in xrange(iteration):
+	for ep in range(epoch):
+		iteration = len(d._map['train']) // batch_size
+		for step in range(iteration):
 			batch = d.next_batch(batch_size)
 			images = [img[0] for img in batch]
 			images = torch.stack(images)
 
 			seq = np.array([img[1] for img in batch], dtype=np.float32)
-			seq_input = torch.from_numpy(seq[:,1:,...]).unsqueeze(2)
-			target = torch.from_numpy(seq[:,:-1,...]).unsqueeze(2)
+			seq_input = torch.from_numpy(seq[:,:-1,...]).unsqueeze(2)
+			#target = torch.from_numpy(seq[:,1:,...]).unsqueeze(2)
+			target = torch.from_numpy(seq).unsqueeze(2)			
 
 			images = Variable(images.cuda(), requires_grad=True)
 			seq_input = Variable(seq_input.cuda(), requires_grad=True)
@@ -73,7 +71,7 @@ def train():
 			#torch.cuda.synchronize()
 			output = model(images, seq_input)
 			loss = 0
-			for t in xrange(target.size(1)):
+			for t in range(target.size(1)):
 				loss += crit(output[:,t,...].squeeze(), target[:,t,...].squeeze())
 
 			try:
@@ -82,8 +80,8 @@ def train():
 				optimizer.step()
 				l.append(loss.data[0])
 				torch.cuda.synchronize()
-			except Exception,x:
-				print x
+			except Exception as x:
+				print(x)
 				return 0
 
 
@@ -106,15 +104,15 @@ def train():
 					output = output.permute(0,1,4,3,2)
 					global ims
 					ims = output[0].data.cpu().numpy()
-					for i in xrange(ims.shape[0]):
+					for i in range(ims.shape[0]):
 						x_1_r = np.uint8(np.maximum(ims[i,:,:,:], 0) * 255)
 						new_im = cv2.resize(x_1_r, (224,224))
 						video.write(new_im)
 					video.release()
 					model.train()
 	
-				except Exception,x:
-					print x
+				except Exception as x:
+					print(x)
 
 			if step%20000 == 0:
 				model.save_checkpoint(model.state_dict(), ep, step, path='/media/ramin/monster/models/sequence-kld/')

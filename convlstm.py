@@ -178,9 +178,9 @@ class Custom_ConvLstm(nn.Module):
 	def __init__(self):
 		super(Custom_ConvLstm, self).__init__()
 
-		self.CLSTM = ConvLSTM((32,32), 1, [16 , 16], [(3,3) , (3,3) ], 2,
+		self.CLSTM = ConvLSTM((32,32), 1, [32 , 32], [(3,3) , (5,5) ], 2,
 				 batch_first=True, bias=True, return_all_layers=True)
-		self.conv_out = nn.Conv2d(16, 1, kernel_size=3, padding=1, bias=False)
+		self.conv_out = nn.Conv2d(32, 1, kernel_size=3, padding=1, bias=False)
 #		self.conv_out = nn.Sequential(
 #					nn.Conv2d(64, 32, kernel_size=3, padding=1, bias=True),
 #					nn.ReLU(inplace=True), 
@@ -194,7 +194,7 @@ class Custom_ConvLstm(nn.Module):
 		conv_output = list()
 		output, hidden_c = self.CLSTM(input, hidden_c)
 		output = output[-1]
-		for t in xrange(output.size(1)):
+		for t in range(output.size(1)):
 			conv_output.append(self.conv_out(output[:,t,...]))
 		conv_output = torch.stack(conv_output, dim=1)
 		return conv_output, [output, hidden_c]

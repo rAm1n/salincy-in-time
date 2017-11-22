@@ -1,5 +1,5 @@
 
-from dataset import *
+from .dataset import *
 from PIL import Image
 from tqdm import tqdm
 import torchvision.transforms as transforms
@@ -11,7 +11,7 @@ from random import shuffle
 import os
 
 class Salicon():
-	def __init__(self, path='tmp/', d_name='SALICON', im_size=(224,224), min_len=50, max_len=550, seq_len= 16, grid_size=32, gamma=1, max_thread=8):
+	def __init__(self, path='tmp/', d_name='SALICON', im_size=(224,224), min_len=50, max_len=550, seq_len= 16, grid_size=32, gamma=3, max_thread=8):
 
 		self.path = path
 		self.d_name = d_name
@@ -60,10 +60,10 @@ class Salicon():
 				with open(path, 'r') as handle:
 					self.images = pickle.load(handle)
 
-                        path = os.path.join(self.path, 'sequences.pkl')
-                        if os.path.exists( path):
-                                with open(path, 'r') as handle:
-                                        self.sequences = pickle.load(handle)
+			path = os.path.join(self.path, 'sequences.pkl')
+			if os.path.exists( path):
+				with open(path, 'r') as handle:
+						self.sequences = pickle.load(handle)
 
 		else:
 			self.initialize()
@@ -140,8 +140,8 @@ class Salicon():
 				seq = list() #processed
 
 				for idx, fix in enumerate(raw_seq):
-						z = np.random.uniform(low=0, high=0.005, size=( self.grid_size, self.grid_size))
-						z[fix[0]][fix[1]] = 2
+						z = np.random.uniform(low=0, high=0.003, size=( self.grid_size, self.grid_size))
+						z[fix[0]][fix[1]] = 10 
 						z = gaussian_filter(z, self.gamma)
 						seq.append(z / z.sum())
 
@@ -152,8 +152,8 @@ class Salicon():
 				if self.index[mode] >= len(self.images[mode]):
 					self.index[mode] = 0
 
-		except Exception,x:
-			print x
+		except Exception as x:
+			print(x)
 
 		return batch
 
