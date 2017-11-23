@@ -2,13 +2,13 @@ from PIL import Image
 from utils.salicon import Salicon 
 import numpy as np
 
-d = Salicon(gamma=2)
+d = Salicon(size=200, gamma=2)
 d.initialize()
 
 
 path = 'test/'
 
-s = d.next_batch()
+s = d.next_batch(norm='scale')
 
 for idx, I in enumerate(s[0][1]):
 	I8 = (((I - I.min()) / (I.max() - I.min())) * 255.9).astype(np.uint8)

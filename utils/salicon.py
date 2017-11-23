@@ -11,7 +11,7 @@ from random import shuffle
 import os
 
 class Salicon():
-	def __init__(self, path='tmp/', d_name='SALICON', im_size=(224,224), min_len=50, max_len=550, seq_len= 16, grid_size=32, gamma=3, max_thread=8):
+	def __init__(self, path='tmp/', d_name='SALICON', size=10000, im_size=(224,224), min_len=50, max_len=550, seq_len= 16, grid_size=32, gamma=3, max_thread=8):
 
 		self.path = path
 		self.d_name = d_name
@@ -20,6 +20,7 @@ class Salicon():
 		self.max_len = max_len
 		self.seq_len = seq_len
 		self.grid_size = grid_size
+		self.size = size
 		self.gamma = gamma
 		self.max_thread= max_thread
 
@@ -72,8 +73,8 @@ class Salicon():
 	def _load_data(self):
 		print('start loading data.')
 		self.dataset = SaliencyBundle(self.d_name)
-		raw_seq = self.dataset.get('sequence', percentile=True, modify='remove')[:5000]
-		stim_path = self.dataset.get('stimuli_path')[:5000]
+		raw_seq = self.dataset.get('sequence', percentile=True, modify='remove')[:self.size]
+		stim_path = self.dataset.get('stimuli_path')[:self.size]
 
 		total_size = len(stim_path)
 
@@ -129,7 +130,7 @@ class Salicon():
 
 
 
-	def next_batch(self, batch_size=2, mode='train'):
+	def next_batch(self, batch_size=2, mode='train', norm='L1'):
 		batch = list()
 		try:
 			for i in range(batch_size):
@@ -141,9 +142,12 @@ class Salicon():
 
 				for idx, fix in enumerate(raw_seq):
 						z = np.random.uniform(low=0, high=0.003, size=( self.grid_size, self.grid_size))
-						z[fix[0]][fix[1]] = 100 
+						z[fix[0]][fix[1]] = 1
 						z = gaussian_filter(z, self.gamma)
-						seq.append(z / z.sum())
+						if norm=='L1':
+							seq.append(z / z.sum())
+						else:
+							seq.append(z)
 
 				if mode=='train':
 					if self.images[mode][img_idx] is not None:

@@ -14,7 +14,7 @@ import os
 
 class SpatioTemporalSaliency(nn.Module):
 
-	def __init__(self, num_layers=1, grid= 32):
+	def __init__(self, grid= 32, activation='sigmoid'):
 		super(SpatioTemporalSaliency, self).__init__()
 
 		self.encoder = make_encoder(pretrained=False)
@@ -24,6 +24,7 @@ class SpatioTemporalSaliency(nn.Module):
 		self.seq_embedding = nn.Sequential(nn.Linear( grid * grid, grid * grid), nn.Dropout(.75))
 
 		self.grid = grid
+		self.activation = activation
 	
 	def _init_hidden_state(self):
 		return self.CLSTM._init_hidden()
@@ -55,10 +56,15 @@ class SpatioTemporalSaliency(nn.Module):
 			result = list()
 			b , t, c, h, w = out_seq.size()
 			for t in range(out_seq.size(1)):
-				q = F.log_softmax(out_seq[:,t,...].contiguous().view(b, -1))
-				result.append(q.view(b,c,h,w))
+				if self.activation=='softmax':
+						q = F.log_softmax(out_seq[:,t,...].contiguous().view(b, -1))
+						result.append(q.view(b,c,h,w))
+				elif self.activation=='sigmoid':
+					q = F.sigmoid(out_seq[:,t,...].contiguous().view(-1))
+					result.append(q.contiguous().view(b,c,h,w))
 			result = torch.stack(result, dim=1)
-			#result = out_seq
+			# result = out_seq
+
 			
 		else:
 
@@ -73,7 +79,10 @@ class SpatioTemporalSaliency(nn.Module):
 			b , t, c, h , w = tmp.size()
 			result = list()
 			for t in range(tmp.size(1)):
-				result.append(F.softmax(tmp[:,t,...].contiguous().view(b,-1)).view(b,c,h,w))
+				if self.activation=='softmax':
+					result.append(F.softmax(tmp[:,t,...].contiguous().view(b,-1)).view(b,c,h,w))
+				elif self.activation=='sigmoid':
+					result.append(F.sigmoid(tmp[:,t,...].contiguous().view(-1)).view(b,c,h,w))
 			result = torch.stack(result, dim=1)
 			#result = tmp
 
@@ -115,5 +124,4 @@ class SpatioTemporalSaliency(nn.Module):
 			filename = os.path.join(path, filename)
 
 		self.load_state_dict(torch.load(filename))
-
-
+		
