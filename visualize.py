@@ -2,7 +2,7 @@ from PIL import Image
 from utils.salicon import Salicon 
 import numpy as np
 
-d = Salicon()
+d = Salicon(gamma=2)
 d.initialize()
 
 

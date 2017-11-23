@@ -18,7 +18,7 @@ num_features=10
 filter_size=3
 batch_size=4
 im_size=(224,224)
-lr=0.000005
+lr=0.0005
 B1=0.01
 B2=0.999
 eps=1e-5
@@ -119,9 +119,9 @@ def train():
 					output = output.permute(0,1,4,3,2)
 					ims = output[0].squeeze().data.cpu().numpy()
 					for i in range(ims.shape[0]):
-						x_1_r = np.uint8(np.maximum(ims[i], 0) * 255)
-						mask = Image.fromarray(x_1_r).resize(im_size).convert('RGBA')
-						new_im = Image.blend(img_resize, mask, alpha=0.5).convert('RGB')
+						x_1_r = np.uint8((np.maximum(ims[i], 0)/ims[i].max()) * 255)
+						mask = Image.fromarray(x_1_r).resize(im_size).convert('RGB').convert('RGBA')
+						new_im = Image.blend(img_resize, mask, alpha=0.6).convert('RGB')
 						#new_im = cv2.resize(x_1_r, (224,224))
 						video.write(np.asarray(new_im))
 					video.release()

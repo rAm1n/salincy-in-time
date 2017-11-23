@@ -37,7 +37,7 @@ class Salicon():
 			)
 		])
 
-		#self.images = dict({key:list() for key in ['train','validation','test']})
+		self.images = dict({key:list() for key in ['train','validation','test']})
 		self.sequences = dict({key:list() for key in ['train','validation','test']})
 		self._map = dict({key:list() for key in ['train','validation','test']})
 
@@ -93,28 +93,28 @@ class Salicon():
 			# choosing set -> train, validation, test
 			dataset = self.stim_path[key]
 			for img_idx, img in enumerate(dataset):
-				img = Image.open(img)
-				if img.mode == 'RGB':
-					#img_processed = self.img_processor(img)
-					#img_processed = img_idx
-					#self.images[key].append(img_processed)
-					for seq in self.raw_seq[key][img_idx]:
-						shape = seq.shape
-						if (shape[0] >= self.min_len) and (shape[0] <= self.max_len):
-							mini_seq = list()
-							old_fix = (0,0)
-							for fix in seq:
-								h = int(self.grid_size * fix[0])
-								w = int(self.grid_size * fix[1])
-								fix = (h,w)
-								if fix != old_fix:
-									mini_seq.append(fix)
-									old_fix = fix
-									if len(mini_seq) == self.seq_len:
-										self.sequences[key].append(np.array(mini_seq, dtype=np.int16))
-										self._map[key].append((img_idx, len(self.sequences[key]) -1 ))
-										mini_seq = list()
-				img.close()
+				#img = Image.open(img)
+				#if img.mode == 'RGB':
+				#img_processed = self.img_processor(img)
+				#img_processed = img_idx
+				self.images[key].append(None)
+				for seq in self.raw_seq[key][img_idx]:
+					shape = seq.shape
+					if (shape[0] >= self.min_len) and (shape[0] <= self.max_len):
+						mini_seq = list()
+						old_fix = (0,0)
+						for fix in seq:
+							h = int(self.grid_size * fix[0])
+							w = int(self.grid_size * fix[1])
+							fix = (h,w)
+							if fix != old_fix:
+								mini_seq.append(fix)
+								old_fix = fix
+								if len(mini_seq) == self.seq_len:
+									self.sequences[key].append(np.array(mini_seq, dtype=np.int16))
+									self._map[key].append((img_idx, len(self.sequences[key]) -1 ))
+									mini_seq = list()
+				#img.close()
 			shuffle(self._map[key])
 
 		del self.raw_seq
@@ -136,20 +136,27 @@ class Salicon():
 				index = self.index[mode]
 				img_idx , seq_idx = self._map[mode][index]
 				raw_seq = self.sequences[mode][seq_idx][:,:2]
-				img = Image.open(self.stim_path[mode][img_idx])
 
 				seq = list() #processed
 
 				for idx, fix in enumerate(raw_seq):
 						z = np.random.uniform(low=0, high=0.003, size=( self.grid_size, self.grid_size))
-						z[fix[0]][fix[1]] = 10000 
+						z[fix[0]][fix[1]] = 100 
 						z = gaussian_filter(z, self.gamma)
 						seq.append(z / z.sum())
 
-				if mode=='test': #Image is not processed
+				if mode=='train':
+					if self.images[mode][img_idx] is not None:
+						batch.append([self.images[mode][img_idx], np.array(seq, dtype=np.float16)])
+					else:
+						img = Image.open(self.stim_path[mode][img_idx])
+						img = self.img_processor(img)
+						self.images[mode][img_idx] = img
+						batch.append([img, np.array(seq, dtype=np.float16)])
+				elif mode=='test':
+					img = Image.open(self.stim_path[mode][img_idx])
 					batch.append([img, np.array(seq, dtype=np.float16)])
-				elif mode=='train':
-					batch.append([self.img_processor(img), np.array(seq, dtype=np.float16)])
+
 
 				# updating index
 				self.index[mode] += 1
