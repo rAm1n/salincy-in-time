@@ -11,20 +11,33 @@ import time
 from utils.salicon import Salicon
 import gc
 import scipy.misc
-
+from PIL import Image
+import torchvision.transforms as transforms
 
 num_features=10
 filter_size=3
-batch_size=8
-lr=0.0005
+batch_size=4
+im_size=(224,224)
+lr=0.000005
 B1=0.01
 B2=0.999
 eps=1e-5
 dtype = torch.cuda.FloatTensor
 torch.set_default_tensor_type('torch.cuda.FloatTensor')
 fourcc = cv2.VideoWriter_fourcc(*'MJPG')
-
 epoch = 5
+
+img_processor = transforms.Compose([
+	transforms.Scale(im_size),
+		transforms.ToTensor(),
+		transforms.Normalize(
+			mean=[0.485, 0.456, 0.406],
+			std=[0.229, 0.224, 0.225]
+		)
+	]
+)
+
+
 
 def train():
 
@@ -79,7 +92,7 @@ def train():
 				loss.backward()
 				optimizer.step()
 				l.append(loss.data[0])
-				torch.cuda.synchronize()
+				#torch.cuda.synchronize()
 			except Exception as x:
 				print(x)
 				return 0
@@ -96,18 +109,21 @@ def train():
 					print(step)
 					print("now generating video!")
 					video = cv2.VideoWriter()
-					success = video.open("video-kld/generated_conv_lstm_video_{0}_{1}.avi".format(ep, step), fourcc, 4, (224, 224), False)
-				# 	hidden_state = model.init_hidden(batch_size)
+					success = video.open("video-kld/generated_conv_lstm_video_{0}_{1}.avi".format(ep, step), fourcc, 4, (224, 224), True)
 					model.eval()
-					output = model(images[0].unsqueeze(0), sequence=None, itr=64)
-					#output = model(test , sequence=None, itr=10)
+					img = d.next_batch(batch_size=1, mode='test')[0][0]
+					img_resize = img.resize(im_size).convert('RGBA')
+					img_processed = Variable(img_processor(img).unsqueeze(0).cuda())
+
+					output = model(img_processed, sequence=None, itr=64)
 					output = output.permute(0,1,4,3,2)
-					global ims
-					ims = output[0].data.cpu().numpy()
+					ims = output[0].squeeze().data.cpu().numpy()
 					for i in range(ims.shape[0]):
-						x_1_r = np.uint8(np.maximum(ims[i,:,:,:], 0) * 255)
-						new_im = cv2.resize(x_1_r, (224,224))
-						video.write(new_im)
+						x_1_r = np.uint8(np.maximum(ims[i], 0) * 255)
+						mask = Image.fromarray(x_1_r).resize(im_size).convert('RGBA')
+						new_im = Image.blend(img_resize, mask, alpha=0.5).convert('RGB')
+						#new_im = cv2.resize(x_1_r, (224,224))
+						video.write(np.asarray(new_im))
 					video.release()
 					model.train()
 	
