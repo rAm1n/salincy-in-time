@@ -11,7 +11,7 @@ from random import shuffle
 import os
 
 class Salicon():
-	def __init__(self, path='tmp/', d_name='SALICON', size=10000, im_size=(224,224), min_len=50, max_len=550, seq_len= 16, grid_size=32, gamma=3, max_thread=8):
+	def __init__(self, path='tmp/', d_name='SALICON', size=10000, im_size=(256,256), min_len=50, max_len=550, seq_len= 16, grid_size=32, gamma=3, max_thread=8):
 
 		self.path = path
 		self.d_name = d_name
@@ -142,7 +142,7 @@ class Salicon():
 
 				for idx, fix in enumerate(raw_seq):
 						z = np.random.uniform(low=0, high=0.003, size=( self.grid_size, self.grid_size))
-						z[fix[0]][fix[1]] = 1
+						z[fix[0]][fix[1]] = 255
 						z = gaussian_filter(z, self.gamma)
 						if norm=='L1':
 							seq.append(z / z.sum())

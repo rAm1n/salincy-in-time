@@ -13,13 +13,15 @@ import gc
 import scipy.misc
 from PIL import Image
 import torchvision.transforms as transforms
+import skvideo.io
+
 
 batch_size=4
-im_size=(224,224)
+im_size=(256,256)
 size=5000
 gamma = 3
 
-act='sigmoid'
+act= None
 opt='ADAM'
 fine_tune=False
 lr=0.0005
@@ -62,6 +64,8 @@ def train():
 		crit = nn.KLDivLoss()
 	elif model.activation == 'sigmoid':
 		crit = nn.MSELoss()
+	else:
+		crit = nn.MSELoss()
 
 	if opt == 'ADAM':
 		optimizer = torch.optim.Adam(model.parameters(), lr=lr, betas=(B1, B2), eps=eps)
@@ -70,13 +74,13 @@ def train():
 
 
 	if not fine_tune:
-		for param in model.encoder.parameters():
+		for param in model.encoder.features.parameters():
 				param.requires_grad = False
 
 
 	print('prep dataset')
 
-	d = Salicon(size=5000, gamma=gamma)
+	d = Salicon(size=size, gamma=gamma)
 	d.load()
 	
 	start = time.time()
@@ -123,31 +127,39 @@ def train():
 				l = list()
 				start = time.time()
 
-			if step%1000 == 0 and step !=0:
+			if step%100 == 0 and step !=0:
 				try:
 					#make video
 					print(step)
 					print("now generating video!")
 					video = cv2.VideoWriter()
-					success = video.open("{0}/generated_conv_lstm_video_{1}_{2}.avi".format(vid_path, ep, step), fourcc, 4, (224, 224), True)
+					#success = video.open("{0}/generated_conv_lstm_video_{1}_{2}.avi".format(vid_path, ep, step), fourcc, 4, im_size, True)
+					writer = skvideo.io.FFmpegWriter("{0}/generated_conv_lstm_video_{1}_{2}.avi".format(vid_path, ep, step))
 					model.eval()
 					img = d.next_batch(batch_size=1, mode='test')[0][0]
-					img_resize = img.resize(im_size).convert('RGBA')
+					img_resize = img.resize(im_size)
 					img_processed = Variable(img_processor(img).unsqueeze(0).cuda())
 
 					output = model(img_processed, sequence=None, itr=64)
 					output = output.permute(0,1,4,3,2)
 					ims = output[0].squeeze().data.cpu().numpy()
+					print(ims.shape)
 					for i in range(ims.shape[0]):
 						if act=='sigmoid':
 							x_1_r = np.uint8((np.maximum(ims[i], 0)) * 255)
 						elif act=='softmax':
 							x_1_r = np.uint8((np.maximum(ims[i], 0) / ims[i].max()) * 255)
-						mask = Image.fromarray(x_1_r).resize(im_size).convert('RGB').convert('RGBA')
+						else:
+							x_1_r = np.uint8(np.minimum(np.maximum(ims[i], 0), 255)) 
+							x_1_r = ((x_1_r - x_1_r.min()) / (x_1_r.max() - x_1_r.min())) * 255.0
+
+						mask = Image.fromarray(x_1_r).resize(im_size).convert('RGB')
 						new_im = Image.blend(img_resize, mask, alpha=0.7).convert('RGB')
-						#new_im = cv2.resize(x_1_r, (224,224))
-						video.write(np.asarray(new_im))
-					video.release()
+						#new_im = cv2.resize(x_1_r, (256,256))
+						#video.write(np.asarray(new_im))
+						writer.writeFrame(new_im)
+					#video.release()
+					writer.close()
 					model.train()
 	
 				except Exception as x:

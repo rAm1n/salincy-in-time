@@ -20,7 +20,8 @@ class SpatioTemporalSaliency(nn.Module):
 		self.encoder = make_encoder(pretrained=False)
 		self.Custom_CLSTM = Custom_ConvLstm()
 		#self.img_embedding = nn.nn.Linear(512 * 14 * 14, grid * grid)
-		self.img_embedding = nn.Sequential(nn.Linear( 512 * 14 * 14, grid * grid), nn.Dropout(.75))
+		#self.img_embedding = nn.Sequential(nn.Linear( 512 * 14 * 14, grid * grid), nn.Dropout(.75))
+		self.img_embedding = nn.Sequential(nn.Linear(32*32, 32*32), nn.Dropout(0.75))
 		self.seq_embedding = nn.Sequential(nn.Linear( grid * grid, grid * grid), nn.Dropout(.75))
 
 		self.grid = grid
@@ -30,7 +31,7 @@ class SpatioTemporalSaliency(nn.Module):
 		return self.CLSTM._init_hidden()
 
 	def forward(self, images, sequence=None ,itr=30):
-		assert images.size()[2:] == (224, 224)
+		assert images.size()[2:] == (256, 256)
 
 		b , c, h, w = images.size()
 		features = self.encoder(images).view(b, -1)
@@ -57,11 +58,11 @@ class SpatioTemporalSaliency(nn.Module):
 			b , t, c, h, w = out_seq.size()
 			for t in range(out_seq.size(1)):
 				if self.activation=='softmax':
-						q = F.log_softmax(out_seq[:,t,...].contiguous().view(b, -1))
-						result.append(q.view(b,c,h,w))
+					result.append(F.log_softmax(tmp[:,t,...].contiguous().view(b,-1)).view(b,c,h,w))
 				elif self.activation=='sigmoid':
-					q = F.sigmoid(out_seq[:,t,...].contiguous().view(-1))
-					result.append(q.contiguous().view(b,c,h,w))
+					result.append(F.sigmoid(out_seq[:,t,...].contiguous().view(-1)).view(b,c,h,w))
+				else:
+					result.append(out_seq[:,t,...])
 			result = torch.stack(result, dim=1)
 			# result = out_seq
 
@@ -83,6 +84,8 @@ class SpatioTemporalSaliency(nn.Module):
 					result.append(F.softmax(tmp[:,t,...].contiguous().view(b,-1)).view(b,c,h,w))
 				elif self.activation=='sigmoid':
 					result.append(F.sigmoid(tmp[:,t,...].contiguous().view(-1)).view(b,c,h,w))
+				else:
+					result.append(tmp[:,t,...])
 			result = torch.stack(result, dim=1)
 			#result = tmp
 
