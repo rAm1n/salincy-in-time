@@ -18,10 +18,10 @@ import skvideo.io
 
 batch_size=4
 im_size=(256,256)
-size=5000
+size=500
 gamma = 3
 
-act= None
+act= 'softmax'
 opt='ADAM'
 fine_tune=False
 lr=0.0005
@@ -60,12 +60,14 @@ def train():
 	model = model.cuda()
 
 
-	if model.activation == 'softmax':
-		crit = nn.KLDivLoss()
-	elif model.activation == 'sigmoid':
-		crit = nn.MSELoss()
-	else:
-		crit = nn.MSELoss()
+	# if model.activation == 'softmax':
+	# 	crit = nn.KLDivLoss()
+	# elif model.activation == 'sigmoid':
+	# 	crit = nn.MSELoss()
+	# else:
+	# 	crit = nn.MSELoss()
+
+	crit = nn.KLDivLoss()
 
 	if opt == 'ADAM':
 		optimizer = torch.optim.Adam(model.parameters(), lr=lr, betas=(B1, B2), eps=eps)
@@ -88,10 +90,20 @@ def train():
 	for ep in range(epoch):
 		iteration = len(d._map['train']) // batch_size
 		for step in range(iteration):
-			if act=='softmax':
-				batch = d.next_batch(batch_size, mode='train', norm='L1')
-			else:
-				batch = d.next_batch(batch_size, mode='train', norm=None)
+			# if act=='softmax':
+			# 	batch = d.next_batch(batch_size, mode='train', norm='L1')
+			# elif act=='sigmoid':
+			# 	batch = d.next_batch(batch_size, mode='train', norm='scale')
+			# else:
+			# 	batch = d.next_batch(batch_size, mode='train', norm='scale')
+			# 	# batch = d.next_batch(batch_size, mode='train', norm=None)
+
+
+			
+
+
+			batch = d.next_batch(batch_size, mode='train', norm='scale')
+
 
 			images = [img[0] for img in batch]
 			images = torch.stack(images)
@@ -109,7 +121,20 @@ def train():
 			output = model(images, seq_input)
 			loss = 0
 			for t in range(target.size(1)):
-				loss += crit(output[:,t,...].squeeze(), target[:,t,...].squeeze())
+				# pred = output[:,t,...].squeeze().contiguous().view(batch_size,-1)
+				t_pred = target[:,t,...].squeeze().contiguous().view(batch_size, -1)
+
+				# pred_sum = pred.sum(dim=1).repeat(32*32, 1).transpose(0,1)
+				t_pred_sum = t_pred.sum(dim=1).repeat(32*32, 1).transpose(0,1)
+
+				# pred /= pred_sum
+				t_pred /= t_pred_sum
+				loss += crit(output[:,t,...], t_pred)
+				# print(pred.min(), pred.max())
+				# print(t_pred.min(), t_pred.max())
+				
+				# loss += crit(output[:,t,...].squeeze().contiguous().view(batch_size,-1), target[:,t,...].squeeze().contiguous().view(batch_size, -1))
+				# loss += crit(output[:,t,...].squeeze(), target[:,t,...].squeeze())
 
 			try:
 				optimizer.zero_grad()
@@ -134,7 +159,14 @@ def train():
 					print("now generating video!")
 					video = cv2.VideoWriter()
 					#success = video.open("{0}/generated_conv_lstm_video_{1}_{2}.avi".format(vid_path, ep, step), fourcc, 4, im_size, True)
-					writer = skvideo.io.FFmpegWriter("{0}/generated_conv_lstm_video_{1}_{2}.avi".format(vid_path, ep, step))
+					writer = skvideo.io.FFmpegWriter("{0}/generated_conv_lstm_video_{1}_{2}.avi".format(vid_path, ep, step), 
+											inputdict={
+												"-r": "10"
+											},
+											outputdict={
+												'-vcodec': 'libx264', '-b': '30000000'
+											}
+									)
 					model.eval()
 					img = d.next_batch(batch_size=1, mode='test')[0][0]
 					img_resize = img.resize(im_size)
@@ -143,22 +175,32 @@ def train():
 					output = model(img_processed, sequence=None, itr=64)
 					output = output.permute(0,1,4,3,2)
 					ims = output[0].squeeze().data.cpu().numpy()
-					print(ims.shape)
 					for i in range(ims.shape[0]):
 						if act=='sigmoid':
-							x_1_r = np.uint8((np.maximum(ims[i], 0)) * 255)
+							x_1_r = np.uint8(ims[i] * 255)
 						elif act=='softmax':
-							x_1_r = np.uint8((np.maximum(ims[i], 0) / ims[i].max()) * 255)
+							# x_1_r = np.maximum(ims[i], 0)
+							# x_1_r = (x_1_r - x_1_r.mean()) / x_1_r.max()
+							# x_1_r = np.uint8(x_1_r * 255)
+
+							# x_1_r = (np.maximum(ims[i], 0) / ims[i].max()) * 255
+							# mask = x_1_r < 100
+							# x_1_r[mask] = 0
+							# x_1_r = np.uint8(x_1_r)
+
+							# mask = ims[i] < 0.003
+							# ims[i][mask] = 0.0
+							x_1_r = (ims[i] - ims[i].min()) / (ims[i].max() - ims[i].min()) * 255
+							x_1_r = np.uint8(x_1_r)
+							# x_1_r = np.uint8((np.maximum(ims[i], 0) / ims[i].max()) * 255)
 						else:
-							x_1_r = np.uint8(np.minimum(np.maximum(ims[i], 0), 255)) 
-							x_1_r = ((x_1_r - x_1_r.min()) / (x_1_r.max() - x_1_r.min())) * 255.0
+							# x_1_r = np.uint8(np.minimum(np.maximum(ims[i], 0), 255)) 
+							x_1_r = np.uint8(ims[i] * 255.0)
+							# x_1_r = ((x_1_r - x_1_r.min()) / (x_1_r.max() - x_1_r.min())) * 255.0
 
 						mask = Image.fromarray(x_1_r).resize(im_size).convert('RGB')
-						new_im = Image.blend(img_resize, mask, alpha=0.7).convert('RGB')
-						#new_im = cv2.resize(x_1_r, (256,256))
-						#video.write(np.asarray(new_im))
+						new_im = Image.blend(img_resize, mask, alpha=0.6).convert('RGB')
 						writer.writeFrame(new_im)
-					#video.release()
 					writer.close()
 					model.train()
 	

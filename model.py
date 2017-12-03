@@ -4,8 +4,8 @@ from torch import autograd
 from torch.autograd import Variable
 import torch.nn.functional as F
 import torch.nn as nn
-from convlstm import Custom_ConvLstm
-from encoder import make_encoder
+from layers.convlstm import Custom_ConvLstm
+from layers.encoder import make_encoder
 import numpy as np
 import cv2
 import time
@@ -20,8 +20,8 @@ class SpatioTemporalSaliency(nn.Module):
 		self.encoder = make_encoder(pretrained=False)
 		self.Custom_CLSTM = Custom_ConvLstm()
 		#self.img_embedding = nn.nn.Linear(512 * 14 * 14, grid * grid)
-		#self.img_embedding = nn.Sequential(nn.Linear( 512 * 14 * 14, grid * grid), nn.Dropout(.75))
-		self.img_embedding = nn.Sequential(nn.Linear(32*32, 32*32), nn.Dropout(0.75))
+		self.img_embedding = nn.Sequential(nn.Linear( 512 * 8 * 8, grid * grid), nn.Dropout(.75))
+		# self.img_embedding = nn.Sequential(nn.Linear(32*32, 32*32), nn.Dropout(0.75))
 		self.seq_embedding = nn.Sequential(nn.Linear( grid * grid, grid * grid), nn.Dropout(.75))
 
 		self.grid = grid
@@ -36,7 +36,7 @@ class SpatioTemporalSaliency(nn.Module):
 		b , c, h, w = images.size()
 		features = self.encoder(images).view(b, -1)
 		img_emd = self.img_embedding(features).view(b ,1 ,1 ,self.grid, self.grid)
-		
+		# img_emd = features.view(b,1,1,self.grid, self.grid)
 
 		out_im, lstm_out = self.Custom_CLSTM(img_emd)
 
@@ -58,7 +58,7 @@ class SpatioTemporalSaliency(nn.Module):
 			b , t, c, h, w = out_seq.size()
 			for t in range(out_seq.size(1)):
 				if self.activation=='softmax':
-					result.append(F.log_softmax(tmp[:,t,...].contiguous().view(b,-1)).view(b,c,h,w))
+					result.append(F.log_softmax(out_seq[:,t,...].contiguous().view(b,-1)).view(b,c,h,w))
 				elif self.activation=='sigmoid':
 					result.append(F.sigmoid(out_seq[:,t,...].contiguous().view(-1)).view(b,c,h,w))
 				else:

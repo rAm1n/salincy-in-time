@@ -141,19 +141,30 @@ class Salicon():
 				seq = list() #processed
 
 				for idx, fix in enumerate(raw_seq):
-						z = np.random.uniform(low=0, high=0.003, size=( self.grid_size, self.grid_size))
-						z[fix[0]][fix[1]] = 255
+						# z = np.zeros((self.grid_size, self.grid_size))
+						z =  np.random.uniform(low=0, high=0.003, size=(self.grid_size, self.grid_size))
+						z[fix[0]][fix[1]] = 1
 						z = gaussian_filter(z, self.gamma)
 						if norm=='L1':
-							seq.append(z / z.sum())
-						else:
-							seq.append(z)
+							# z += eps
+							z /= z.sum()
+							# seq.append(z / z.sum())
+						elif norm=='scale':
+							z /= z.max()
+							# z += eps
+							# seq.append(z / z.max())
+						# else:
+						# 	seq.append(z)
+
+						seq.append(z)
 
 				if mode=='train':
 					if self.images[mode][img_idx] is not None:
 						batch.append([self.images[mode][img_idx], np.array(seq, dtype=np.float16)])
 					else:
 						img = Image.open(self.stim_path[mode][img_idx])
+						if img.mode != 'RGB':
+							img = img.convert('RGB')
 						img = self.img_processor(img)
 						self.images[mode][img_idx] = img
 						batch.append([img, np.array(seq, dtype=np.float16)])
