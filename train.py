@@ -18,20 +18,21 @@ import skvideo.io
 
 batch_size=4
 im_size=(256,256)
-size=5000
+size=10000
 gamma = 3
 
-act= None
+act= 'softmax'
 opt='ADAM'
 fine_tune=False
-lr=0.0005
+lr=0.0001
+# lr=5e-5
 B1=0.01
 B2=0.999
 eps=1e-5
 epoch = 5
 
 ck_path = '/media/ramin/monster/models/sequence-kld'
-vid_path = 'video-kld'
+vid_path = 'video'
 
 dtype = torch.cuda.FloatTensor
 torch.set_default_tensor_type('torch.cuda.FloatTensor')
@@ -39,7 +40,7 @@ fourcc = cv2.VideoWriter_fourcc(*'MJPG')
 
 
 img_processor = transforms.Compose([
-	transforms.Scale(im_size),
+	transforms.Resize(im_size),
 		transforms.ToTensor(),
 		transforms.Normalize(
 			mean=[0.485, 0.456, 0.406],
@@ -86,7 +87,8 @@ def train():
 	start = time.time()
 	l = list()
 	for ep in range(epoch):
-		iteration = len(d._map['train']) // batch_size
+		total_size = np.array([len(d._map['train'][item]) for item in d._map['train'] ]).sum()
+		iteration = total_size // batch_size
 		for step in range(iteration):
 			if act=='softmax':
 				batch = d.next_batch(batch_size, mode='train', norm='L1')

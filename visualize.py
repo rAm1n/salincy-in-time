@@ -2,22 +2,25 @@ from PIL import Image
 from utils.salicon import Salicon 
 import numpy as np
 
-d = Salicon(size=200, gamma=2)
-d.initialize()
-
+d = Salicon(size=200, gamma=3)
+#d.initialize()
+d.load()
 
 path = 'test/'
 
-s = d.next_batch(mode='test', norm=None)
+s = d.next_batch(mode='train', norm=None)
+
+
+I = s[0][0].permute(1,2,0).cpu().numpy()
+main = (((I - I.min()) / (I.max() - I.min())) * 255.9).astype(np.uint8)
+main = Image.fromarray(main)
+main = main.resize((224,224))
 
 for idx, I in enumerate(s[0][1]):
 	I8 = (((I - I.min()) / (I.max() - I.min())) * 255.9).astype(np.uint8)
-	img = Image.fromarray(I8)
+	img = Image.fromarray(I8).convert('RGB')
 	img = img.resize((224,224))
-	img.save(path + "{0}.png".format(idx))
+	Image.blend(main, img, alpha=0.7).save(path + "{0}.png".format(idx))
 
-I = s[0][0].permute(1,2,0).cpu().numpy()
-#I8 = (((I - I.min()) / (I.max() - I.min())) * 255.9).astype(np.uint8)
-I8 = I.astype(np.uint8)
-img = Image.fromarray(I8)
-img.save('test/main.jpg')
+
+# img.save('test/main.jpg')

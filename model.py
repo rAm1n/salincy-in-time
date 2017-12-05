@@ -58,7 +58,7 @@ class SpatioTemporalSaliency(nn.Module):
 			b , t, c, h, w = out_seq.size()
 			for t in range(out_seq.size(1)):
 				if self.activation=='softmax':
-					result.append(F.log_softmax(tmp[:,t,...].contiguous().view(b,-1)).view(b,c,h,w))
+					result.append(F.log_softmax(out_seq[:,t,...].contiguous().view(b,-1), dim=-1).view(b,c,h,w))
 				elif self.activation=='sigmoid':
 					result.append(F.sigmoid(out_seq[:,t,...].contiguous().view(-1)).view(b,c,h,w))
 				else:
@@ -81,7 +81,7 @@ class SpatioTemporalSaliency(nn.Module):
 			result = list()
 			for t in range(tmp.size(1)):
 				if self.activation=='softmax':
-					result.append(F.softmax(tmp[:,t,...].contiguous().view(b,-1)).view(b,c,h,w))
+					result.append(F.softmax(tmp[:,t,...].contiguous().view(b,-1), dim=-1).view(b,c,h,w))
 				elif self.activation=='sigmoid':
 					result.append(F.sigmoid(tmp[:,t,...].contiguous().view(-1)).view(b,c,h,w))
 				else:

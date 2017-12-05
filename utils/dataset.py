@@ -60,7 +60,7 @@ class SaliencyBundle():
 		try:
 			path = os.path.join(pkl_directory, '{0}.pkl'.format(self.name))
 			f = open(path, 'rb')
-			data = pickle.load(f, encoding='latin1')
+			data = pickle.load(f)#, encoding='latin1')
 			for url in data['url']:
 				self._download(url, extract=True)
 			f.close()
@@ -100,7 +100,7 @@ class SaliencyBundle():
 		try:
 			path = os.path.join(pkl_directory, '{0}.pkl'.format(self.name))
 			f = open(path, 'rb')
-			data = pickle.load(f, encoding='latin1')
+			data = pickle.load(f)#, encoding='latin1')
 			for key,value in data.items():
 				setattr(SaliencyBundle, key, value)
 			# pre-processing data
