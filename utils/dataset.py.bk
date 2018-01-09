@@ -2,7 +2,6 @@
 
 
 import json
-import pickle
 import wget
 from scipy.misc import imread
 import numpy as np
@@ -53,19 +52,19 @@ class SaliencyBundle():
 		# Starting Download
 		# for url in URLs[self.name]:
 		# 	self._download(url, unzip=True)
-		pkl_url  = self.config['json_directory'] + self.name.upper() + '.pkl'
-		self._download(pkl_url)
+		json_url  = self.config['json_directory'] + self.name.upper() + '.json'
+		self._download(json_url)
 
-		pkl_directory = os.path.join(self.config['data_path'], self.name)
+		json_directory = os.path.join(self.config['data_path'], self.name)
 		try:
-			path = os.path.join(pkl_directory, '{0}.pkl'.format(self.name))
-			f = open(path, 'rb')
-			data = pickle.load(f)#, encoding='latin1')
+			path = os.path.join(json_directory, '{0}.json'.format(self.name))
+			f = open(path, 'r')
+			data = json.load(f)
 			for url in data['url']:
 				self._download(url, extract=True)
 			f.close()
-		except Exception as x:
-			print(x)
+		except Exception,x:
+			print x
 
 		#loading data
 		self._load()
@@ -90,23 +89,23 @@ class SaliencyBundle():
 					tar.close()
 				os.remove(dst)
 
-		except Exception as x:
-			print(x)
+		except Exception,x:
+			print x
 			os.rmdir(directory)
 
 
 	def _load(self):
-		pkl_directory = os.path.join(self.config['data_path'], self.name)
+		json_directory = os.path.join(self.config['data_path'], self.name)
 		try:
-			path = os.path.join(pkl_directory, '{0}.pkl'.format(self.name))
-			f = open(path, 'rb')
-			data = pickle.load(f)#, encoding='latin1')
-			for key,value in data.items():
+			path = os.path.join(json_directory, '{0}.json'.format(self.name))
+			f = open(path, 'r')
+			data = json.load(f)
+			for key,value in data.iteritems():
 				setattr(SaliencyBundle, key, value)
 			# pre-processing data
 			self.len = len(data)
-		except Exception as x:
-			print(x)
+		except Exception,x:
+			print x
 
 	def get(self, data_type, **kargs):
 		result = list()
@@ -156,16 +155,11 @@ class SaliencyBundle():
 
 			elif data_type =='heatmap':
 				path = os.path.join(self.directory, img['heatmap'])
-				print path
 				if os.path.isfile(path):
 					tmp = imread(path)
 				else:
 					tmp = np.fromstring( img['heatmap'].decode('base64'), \
 						dtype='int8').reshape(self.size)
-	
-			elif data_type == 'heatmap_path':
-							tmp = os.path.join(self.directory, img['heatmap'])
-
 			elif data_type =='stimuli':
 				path = os.path.join(self.directory, img['stimuli'])
 				if os.path.isfile(path):
@@ -175,7 +169,7 @@ class SaliencyBundle():
 			else:
 				try:
 					tmp = self.data[data_type]
-				except Exception as x:
+				except Exception,x:
 					return False
 			result.append(tmp)
 

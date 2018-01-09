@@ -5,7 +5,7 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 import torch.nn as nn
 from convlstm import Custom_ConvLstm
-from encoder import make_encoder
+from vgg import make_encoder
 import numpy as np
 import cv2
 import time
