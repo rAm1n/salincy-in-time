@@ -22,8 +22,7 @@ FixaTons.metrics.timedelayembeddingdistance( humanscanpath, sim-ulatedscanpath, 
 
 FixaTons.metrics.scaledtimedelayembeddingdistance( humanscanpath,simulatedscanpath, image, toPlot = False))
 
-
-
+[Fixaton](https://arxiv.org/pdf/1802.02534.pdf)
 
 **Le Mure ( ?????)**:
 
