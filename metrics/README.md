@@ -24,6 +24,7 @@ FixaTons.metrics.scaledtimedelayembeddingdistance( humanscanpath,simulatedscanpa
 
 
 
+
 **Le Mure ( ?????)**:
 
 [http://www.lutin-userlab.fr/site/accueil/documents/10.3758\_s13428-012-0226-9.pdf](http://www.lutin-userlab.fr/site/accueil/documents/10.3758_s13428-012-0226-9.pdf)
@@ -32,7 +33,8 @@ FixaTons.metrics.scaledtimedelayembeddingdistance( humanscanpath,simulatedscanpa
 
 
 
-**MultiMatch (-1)**:
+**MultiMatch (edited version?????)**:
 It depends on how you look at it: Scanpath comparison in multiple dimensions with MultiMatch, a vector-based approach,  Richard Dewhurst,
 
-[https://link.springer.com/article/10.3758/s13428-012-0212-2](https://link.springer.com/article/10.3758/s13428-012-0212-2)
+[Scanpath comparison in multiple dimensions with MultiMatch, a vector-based approachi](https://link.springer.com/article/10.3758/s13428-012-0212-2)
+[A Vector-based, Multidimensional Scanpath Similarity Measure] (http://portal.research.lu.se/ws/files/5608175/1539210.PDF)
