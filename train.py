@@ -1,19 +1,70 @@
-
-import torch
-from torch import autograd
-from torch.autograd import Variable
-import torch.nn.functional as F
-import torch.nn as nn
-from model import SpatioTemporalSaliency
+from __future__ import print_function
+import argparse
+import os
+import shutil
+import time
 import numpy as np
+import sys
+from datetime import datetime
+import logging
 import cv2
 import time
-from utils.salicon import Salicon
-import gc
 import scipy.misc
 from PIL import Image
-import torchvision.transforms as transforms
+import gc
 import skvideo.io
+
+
+import torch
+from torch.autograd import Variable
+import torch.nn as nn
+import torch.nn.functional as F
+import torchvision.transforms as transforms
+import torch.backends.cudnn as cudnn
+
+from model import SpatioTemporalSaliency
+
+
+
+# from utils.salicon import Salicon
+
+
+# from dataset.loader import Dataset
+# from models import *
+# from utils import config
+
+parser = argparse.ArgumentParser(description='Scanpath prediction')
+
+# parser.add_argument('--fashion', default='weights/resnet34-fashion-12cls-adam-3e-4.pth.tar', metavar='DIR',
+# 					help='path to dataset')
+# parser.add_argument('--event', default='weights/resnet50_event_acc74.pth.tar', metavar='DIR',
+# 					help='path to dataset')
+parser.add_argument('--weights', default='weights', metavar='DIR',
+					help='path to dataset')
+parser.add_argument('--log', default='logs/', metavar='DIR',
+					help='path to dataset')
+parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
+					help='number of data loading workers (default: 4)')
+parser.add_argument('--epochs', default=10, type=int, metavar='N',
+					help='number of total epochs to run')
+parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
+					help='manual epoch number (useful on restarts)')
+parser.add_argument('-b', '--batch-size', default=32, type=int,
+					metavar='N', help='mini-batch size (default: 256)')
+parser.add_argument('--lr', '--learning-rate', default=3e-4, type=float,
+					metavar='LR', help='initial learning rate')
+parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
+					help='momentum')
+parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
+					metavar='W', help='weight decay (default: 1e-4)')
+parser.add_argument('--print-freq', '-p', default=10, type=int,
+					metavar='N', help='print frequency (default: 10)')
+parser.add_argument('--resume', default='', type=str, metavar='PATH',
+					help='path to latest checkpoint (default: none)')
+parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
+					help='evaluate model on validation set')
+parser.add_argument('--world-size', default=1, type=int,
+					help='number of distributed processes')
 
 
 batch_size=4
@@ -24,7 +75,7 @@ gamma = 3
 act= 'softmax'
 opt='ADAM'
 fine_tune=False
-lr=0.0001
+lr=0.0005
 # lr=5e-5
 B1=0.01
 B2=0.999
@@ -83,7 +134,7 @@ def train():
 
 	d = Salicon(size=size, gamma=gamma)
 	d.load()
-	
+
 	start = time.time()
 	l = list()
 	for ep in range(epoch):
@@ -101,7 +152,7 @@ def train():
 			seq = np.array([img[1] for img in batch], dtype=np.float32)
 			seq_input = torch.from_numpy(seq[:,:-1,...]).unsqueeze(2)
 			#target = torch.from_numpy(seq[:,1:,...]).unsqueeze(2)
-			target = torch.from_numpy(seq).unsqueeze(2)			
+			target = torch.from_numpy(seq).unsqueeze(2)
 
 			images = Variable(images.cuda(), requires_grad=True)
 			seq_input = Variable(seq_input.cuda(), requires_grad=True)
@@ -152,7 +203,7 @@ def train():
 						elif act=='softmax':
 							x_1_r = np.uint8((np.maximum(ims[i], 0) / ims[i].max()) * 255)
 						else:
-							x_1_r = np.uint8(np.minimum(np.maximum(ims[i], 0), 255)) 
+							x_1_r = np.uint8(np.minimum(np.maximum(ims[i], 0), 255))
 							x_1_r = ((x_1_r - x_1_r.min()) / (x_1_r.max() - x_1_r.min())) * 255.0
 
 						mask = Image.fromarray(x_1_r).resize(im_size).convert('RGB')
@@ -163,13 +214,13 @@ def train():
 					#video.release()
 					writer.close()
 					model.train()
-	
+
 				except Exception as x:
 					print(x)
 
 			if step%20000 == 0:
 				model.save_checkpoint(model.state_dict(), ep, step, path=ck_path)
-				
+
 			del images, seq_input, target, loss
 
 

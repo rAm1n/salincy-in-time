@@ -1,0 +1,3 @@
+[submodule "saliency"]
+	path = saliency
+	url = git@github.com:rAm1n/saliency.git
