@@ -162,7 +162,7 @@ class SaliencyBundle():
 				else:
 					tmp = np.fromstring( img['heatmap'].decode('base64'), \
 						dtype='int8').reshape(self.size)
-	
+
 			elif data_type == 'heatmap_path':
 							tmp = os.path.join(self.directory, img['heatmap'])
 
