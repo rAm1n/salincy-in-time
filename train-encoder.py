@@ -4,6 +4,8 @@ import shutil
 import time
 import numpy as np
 import logging
+import sys
+from datetime import datetime
 
 import torch
 import torch.nn as nn
@@ -176,7 +178,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
 		data_time.update(time.time() - end)
 
 		target = target.cuda(async=True)
-		input_var = torch.autograd.Variable(input)
+		input_var = torch.autograd.Variable(input).cuda()
 		target_var = torch.autograd.Variable(target)
 
 		# compute output
@@ -184,9 +186,9 @@ def train(train_loader, model, criterion, optimizer, epoch):
 		loss = criterion(output, target_var)
 
 		# measure accuracy and record loss
-		acc  = accuracy(output.data, target)
+		acc  = accuracy(output.data.cpu().numpy(), target.cpu().numpy())
 		losses.update(loss.data[0], input.size(0))
-		top1.update(acc, input.size(0))
+		top1.update(acc.mean(), input.size(0))
 
 		# compute gradient and do SGD step
 		optimizer.zero_grad()
@@ -220,7 +222,7 @@ def validate(val_loader, model, criterion):
 	count = list()
 	for i, (input, target) in enumerate(val_loader):
 		target = target.cuda(async=True)
-		input_var = torch.autograd.Variable(input, volatile=True)
+		input_var = torch.autograd.Variable(input, volatile=True).cuda()
 		target_var = torch.autograd.Variable(target, volatile=True)
 
 		# compute output
@@ -228,10 +230,10 @@ def validate(val_loader, model, criterion):
 		loss = criterion(output, target_var)
 
 		# measure accuracy and record loss
-		acc  = accuracy(output.data, target)
+		acc  = accuracy(output.data.cpu().numpy(), target.cpu().numpy())
 
 		losses.update(loss.data[0], input.size(0))
-		top1.update(prec1[0], input.size(0))
+		top1.update(acc.mean(), input.size(0))
 
 
 		# measure elapsed time
@@ -288,7 +290,7 @@ def adjust_learning_rate(optimizer, epoch):
 
 def accuracy(output, target):
 	"""Computes the precision@k for the specified values of k"""
-	batch_size = target.size(0)
+	batch_size = target.shape[0]
 	result = list()
 	metric = eval(args.metric)
 
