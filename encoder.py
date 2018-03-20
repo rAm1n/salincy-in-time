@@ -36,10 +36,13 @@ class Encoder(nn.Module):
 		super(Encoder, self).__init__()
 
 		self.features = features
+		self.classifier = nn.Conv2d(512,1, kernel_size=1)
+		self.sigmoid = nn.Sigmoid()
 
 	def forward(self, x):
-		output = list()
-		return self.features(x)
+		feat = self.classifier(self.features(x))
+		b, c, w, h = feat.size()
+		return self.sigmoid(feat.view(b,-1)).view(b,c,w,h)
 		# for name, module in self.features._modules.items():
 		# 	x = module(x)
 		# 	output.append(x)

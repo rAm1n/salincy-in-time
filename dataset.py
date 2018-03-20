@@ -36,7 +36,7 @@ sal_transform = transforms.Compose([
 
 
 sal_gt_transform = transforms.Compose([
-		transforms.Scale((100,75)),
+		transforms.Resize((75,100)),
 		transforms.ToTensor(),
 	])
 
@@ -191,8 +191,8 @@ class Saliency(Dataset):
 			dataset = list()
 
 			d = SaliencyDataset(self.config['name'])
-			maps = d.get('heatmap_path')['saliency' + self.config[mode]]
-			imgs = d.get('stimuli_path')['saliency' + self.config[mode]]
+			maps = d.get('heatmap_path')[ self.config['saliency_' + mode]]
+			imgs = d.get('stimuli_path')[ self.config['saliency_' + mode]]
 
 			for idx , img in enumerate(imgs):
 				dataset.append((img,maps[idx]))
