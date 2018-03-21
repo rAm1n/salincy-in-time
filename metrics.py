@@ -203,7 +203,7 @@ def SAUC(saliency_map, fixation_map, shuf_map=np.zeros((480,640)), step_size=.01
 def AUC(salMap, fixMap):
 	"""Computes AUC for given saliency map 'salMap' and given
 	fixation map 'fixMap'"""
-	fixMap = (fixMap>0.8).astype(int)
+	fixMap = (fixMap>0.7).astype(int)
 	salShape = salMap.shape
 	fixShape = fixMap.shape
 	predicted = salMap.reshape(salShape[0]*salShape[1], -1,

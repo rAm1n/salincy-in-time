@@ -6,6 +6,7 @@ import numpy as np
 import logging
 import sys
 from datetime import datetime
+from PIL import Image
 
 import torch
 import torch.nn as nn
@@ -41,9 +42,11 @@ parser.add_argument('--log', default='logs/', metavar='DIR',
 parser.add_argument('--metric', '-m', metavar='METRIC', default='AUC',
 					choices=['AUC', 'NSS'],
 					help='evaluation metric')
+parser.add_argument('-v','--visualize', metavar='DIR', 
+                    help='path to dataset')
 parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
 					help='number of data loading workers (default: 4)')
-parser.add_argument('--epochs', default=10, type=int, metavar='N',
+parser.add_argument('--epochs', default=50, type=int, metavar='N',
 					help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
 					help='manual epoch number (useful on restarts)')
@@ -138,6 +141,10 @@ def main():
 
 	if args.evaluate:
 		validate(val_loader, model, criterion)
+		return
+	
+	if args.visualize:
+		visualize(val_loader, model)
 		return
 
 	for epoch in range(args.start_epoch, args.epochs):
@@ -298,6 +305,29 @@ def accuracy(output, target):
 		result.append(metric(output[i], target[i]))
 
 	return np.array(result)
+
+def visualize(loader, model):
+	counter = 0
+	for batch_idx, (input, target) in enumerate(loader):
+		target = target.cuda(async=True)
+		input_var = torch.autograd.Variable(input, volatile=True).cuda()
+		target_var = torch.autograd.Variable(target, volatile=True)
+		output = model(input_var).data.cpu().numpy()
+		for idx, img in enumerate(input):
+			img = Image.open(loader.dataset.dataset[counter][0])
+			counter+=1
+			w, h = img.size
+			mask = np.array(output[idx][0] * 255, dtype=np.uint8)
+			mask = Image.fromarray(mask).resize((w,h)).convert('RGB')
+			saliency = np.array(target[idx][0] * 255, dtype=np.uint8)
+			saliency = Image.fromarray(saliency).resize((w,h)).convert('RGB')
+			
+			out = Image.new('RGB', (w, h*2))
+			out.paste(Image.blend(img, mask, alpha=0.9).convert('RGB'), (0,0))
+			out.paste(Image.blend(img, saliency, alpha=0.9).convert('RGB'),(0,h))
+
+			out_path = os.path.join(args.visualize, '{0}-{1}.jpg'.format(batch_idx, idx))
+			out.save(out_path)
 
 
 

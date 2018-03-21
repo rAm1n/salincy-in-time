@@ -21,7 +21,7 @@ normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
 
 transform = transforms.Compose([
 		# transforms.RandomResizedCrop(224),
-		transforms.RandomHorizontalFlip(),
+#		transforms.RandomHorizontalFlip(),
 		transforms.ToTensor(),
 		normalize,
 	])
@@ -29,7 +29,7 @@ transform = transforms.Compose([
 
 sal_transform = transforms.Compose([
 		# transforms.RandomResizedCrop(224),
-		# transforms.RandomHorizontalFlip(),
+		#transforms.RandomHorizontalFlip(),
 		transforms.ToTensor(),
 		normalize,
 	])
