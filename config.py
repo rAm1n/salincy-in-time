@@ -12,6 +12,7 @@ CONFIG = {
 	'gaussian_sigma' : 40,
 	'mask_th' : 0.01,
 	'distance': 120,
+	'encoder_arch' : 'dvgg16'
 }
 
 
