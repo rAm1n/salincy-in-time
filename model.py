@@ -5,28 +5,23 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 import torch.nn as nn
 from convlstm import Custom_ConvLstm
-from encoder import make_encoder
+from encoder import make_encoder, en_config
 import numpy as np
 import cv2
 import time
 import os
-
+from config import CONFIG
 
 class SpatioTemporalSaliency(nn.Module):
 
-	def __init__(self, grid= 32, activation='sigmoid'):
+	def __init__(self, config):
 		super(SpatioTemporalSaliency, self).__init__()
 
-		self.encoder = make_encoder(pretrained=False)
-		self.Custom_CLSTM = Custom_ConvLstm()
-		#self.img_embedding = nn.nn.Linear(512 * 14 * 14, grid * grid)
-		#self.img_embedding = nn.Sequential(nn.Linear( 512 * 14 * 14, grid * grid), nn.Dropout(.75))
-		self.img_embedding = nn.Sequential(nn.Linear(32*32, 32*32), nn.Dropout(0.75))
-		self.seq_embedding = nn.Sequential(nn.Linear( grid * grid, grid * grid), nn.Dropout(.75))
 
-		self.grid = grid
-		self.activation = activation
-	
+		self.config = config
+		self.encoder = make_encoder(en_config[config['encoder_arch']])
+		self.Custom_CLSTM = Custom_ConvLstm()
+
 	def _init_hidden_state(self):
 		return self.CLSTM._init_hidden()
 
@@ -36,7 +31,7 @@ class SpatioTemporalSaliency(nn.Module):
 		b , c, h, w = images.size()
 		features = self.encoder(images).view(b, -1)
 		img_emd = self.img_embedding(features).view(b ,1 ,1 ,self.grid, self.grid)
-		
+
 
 		out_im, lstm_out = self.Custom_CLSTM(img_emd)
 
@@ -66,7 +61,7 @@ class SpatioTemporalSaliency(nn.Module):
 			result = torch.stack(result, dim=1)
 			# result = out_seq
 
-			
+
 		else:
 
 			out_seq = list()
@@ -75,7 +70,7 @@ class SpatioTemporalSaliency(nn.Module):
 			for t in range(itr):
 				tmp_out , hidden_c = self.Custom_CLSTM(tmp_out , hidden_c[1])
 				out_seq.append(tmp_out)
-			out_seq = torch.cat(out_seq, dim=1)		
+			out_seq = torch.cat(out_seq, dim=1)
 			tmp = torch.cat((out_im ,  out_seq), dim=1)
 			b , t, c, h , w = tmp.size()
 			result = list()
@@ -107,24 +102,24 @@ class SpatioTemporalSaliency(nn.Module):
 				m.bias.data.zero_()
 		if vgg:
 			self.encoder.load_vgg_weights()
-					
+
 
 	def save_checkpoint(self, state, ep, step, max_keep=15, path='/media/ramin/monster/models/sequence/'):
 		filename = os.path.join(path, 'ck-{0}-{1}.pth.tar'.format(ep, step))
 		torch.save(state, os.path.join(path, 'ck-last.path.tar'))
 		torch.save(state, filename)
 		def sorted_ls(path):
-    			mtime = lambda f: os.stat(os.path.join(path, f)).st_mtime
-    			return list(sorted(os.listdir(path), key=mtime))
+			mtime = lambda f: os.stat(os.path.join(path, f)).st_mtime
+			return list(sorted(os.listdir(path), key=mtime))
 		files = sorted_ls(path)[:-max_keep]
 		for item in files:
-			os.remove(os.path.join(path, item))	
+			os.remove(os.path.join(path, item))
 
 	def load_checkpoint(self, path='/media/ramin/monster/models/sequence/', filename=None):
 		if not filename:
-			filename = os.path.join(path, 'ck-last.path.tar')	
+			filename = os.path.join(path, 'ck-last.path.tar')
 		else:
 			filename = os.path.join(path, filename)
 
 		self.load_state_dict(torch.load(filename))
-		
+
