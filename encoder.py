@@ -8,10 +8,16 @@ import torch
 
 
 en_config = {
-	'vgg16': ['64', '64', 'M', '128','128', 'M', '256', '256', '256', 'M',
+	'vgg16':{
+			'arch' : ['64', '64', 'M', '128','128', 'M', '256', '256', '256', 'M',
 				'512', '512', '512', 'M', '512' , '512', '512', 'M'],
-	'dvgg16' : ['64', '64', 'M', '128','128', 'M', '256', '256', '256', 'M',
-				'512', '512', '512', '512d', '512d', '512d']
+			'scale_factor' : 32 
+		},
+	'dvgg16' :{
+			'arch' : ['64', '64', 'M', '128','128', 'M', '256', '256', '256', 'M',
+				'512', '512', '512', '512d', '512d', '512d'],
+			'scale_factor' : 8 
+		}
 }
 
 
@@ -25,10 +31,20 @@ class Encoder(nn.Module):
 		super(Encoder, self).__init__()
 
 		self.features = features
+		self.classifier = nn.Conv2d(512,1, kernel_size=1)
+		self.sigmoid = nn.Sigmoid()
 
 	def forward(self, x):
-
-		return self.features(x)
+		feat = self.classifier(self.features(x))
+		b, c, w, h = feat.size()
+		return self.sigmoid(feat.view(b,-1)).view(b,c,w,h)
+		###############################
+		# for name, module in self.features._modules.items():
+		# 	x = module(x)
+		# 	output.append(x)
+		# return output
+		###############################
+		# return self.features(x)
 
 	def _initialize_weights(self):
 		for m in self.modules():
@@ -43,6 +59,9 @@ class Encoder(nn.Module):
 			elif isinstance(m, nn.Linear):
 				m.weight.data.normal_(0, 0.01)
 				m.bias.data.zero_()
+
+	def load_weights(self,w_path='weights/encoder.pth.tar'):
+		self.load_state_dict(torch.load(w_path)['state_dict'])
 
 	# def load_vgg_weights(self, url='https://download.pytorch.org/models/vgg16-397923af.pth'):
 	# 	vgg = model_zoo.load_url(url)

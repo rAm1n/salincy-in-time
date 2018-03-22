@@ -61,8 +61,8 @@ class ConvLSTMCell(nn.Module):
 		return (h_next, c_next)
 
 	def init_hidden(self, batch_size):
-		return (Variable(torch.zeros(batch_size, self.hidden_dim, self.height, self.width)).cuda(),
-				Variable(torch.zeros(batch_size, self.hidden_dim, self.height, self.width)).cuda())
+		return (Variable(torch.zeros(batch_size, self.hidden_dim, self.height, self.width)).cuda(1),
+				Variable(torch.zeros(batch_size, self.hidden_dim, self.height, self.width)).cuda(1))
 
 
 class ConvLSTM(nn.Module):
@@ -192,7 +192,10 @@ class Custom_ConvLstm(nn.Module):
 		output, hidden_c = self.CLSTM(input, hidden_c)
 		output = output[-1]
 		for t in range(output.size(1)):
-			conv_output.append(self.conv_out(output[:,t,...]))
+			conv1_1_out = self.conv_out(output[:,t,...])
+			b , c, h, w = conv1_1_out.size()
+			conv_output.append(self.sigmoid(conv1_1_out.view(b,-1)).view(b,c,h,w))
+			
 		conv_output = torch.stack(conv_output, dim=1)
 		return conv_output, [output, hidden_c]
 

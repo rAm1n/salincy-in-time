@@ -64,7 +64,7 @@ sal_gt_transform = transforms.Compose([
 class SequnceDataset(Dataset):
 	"""Face Landmarks dataset."""
 
-	def __init__(self, config, mode='train',  transform=transform):
+	def __init__(self, config, mode='train',  transform=transform, sal_tf=sal_gt_transform):
 		"""
 		Args:
 			csv_file (string): Path to the csv file with annotations.
@@ -74,6 +74,7 @@ class SequnceDataset(Dataset):
 		"""
 		self.config = config
 		self.transform = transform
+		self.sal_tf = sal_tf
 		self.dataset = self.load(mode)
 
 
@@ -94,14 +95,16 @@ class SequnceDataset(Dataset):
 			d = SaliencyDataset(self.config['name'])
 			seqs = d.get('sequence')
 			imgs = d.get('stimuli_path')
+			maps = d.get('heatmap_path')
 
 			for idx , img in enumerate(imgs):
 				for seq in seqs[idx][self.config[mode]]:
 					if (seq.shape[0] < 3):
 						continue
-					dataset.append((img,seq))
+					dataset.append((img, maps[idx], seq))
 
-			return sorted(dataset, key=lambda k: random.random())
+			return dataset
+			# return sorted(dataset, key=lambda k: random.random())
 
 		except OSError as e:
 				raise e
@@ -112,8 +115,9 @@ class SequnceDataset(Dataset):
 		foveated_imgs = list()
 		gts = list()
 
-		img , user_seq = pair
+		img , sal, user_seq = pair
 		img = Image.open(img)
+		sal = Image.open(sal)
 
 		if self.config['first_blur_sigma']:
 			foveated_imgs.append(img.filter(ImageFilter.GaussianBlur(self.config['first_blur_sigma'])))
@@ -135,27 +139,37 @@ class SequnceDataset(Dataset):
 				gt = gaussian_filter(gt, self.config['gaussian_sigma'])
 				mask = (gt > self.config['mask_th'])
 				blurred[mask] = np.array(img)[mask]
-				gt[mask] = 1
+				gt[mask] = 255.0
 
 				foveated_imgs.append(Image.fromarray(blurred))
+				gt = np.array(Image.fromarray(gt.astype(np.uint8)).resize((100,75)), dtype=np.float32) / 255.0
 				gts.append(gt)
+
 				first_sec = sec_fix
 			except Exception as e:
 				print(e)
 
-		return [foveated_imgs, np.array(gts)]
+		return [foveated_imgs, sal, np.array(gts)]
 
 	def __getitem__(self, idx):
 		result = list()
-		fov, gts = self._prep(self.dataset[idx])
+		fov, sal, gts = self._prep(self.dataset[idx])
 
 		for img in fov:
-			# if self.transform:
-			# 	img = self.transform(img)
+			if self.transform:
+				img = self.transform(img)
+			img = np.array(img)
 			result.append(img)
 
-		return [result, gts]
+		if self.sal_tf:
+			sal = self.sal_tf(sal)
+		result = np.array(result, dtype=np.uint8)
+		sal = np.array(sal)
 
+		return [result, sal, gts, self.dataset[idx]] 
+
+		# return [torch.stack(result), sal, torch.from_numpy(gts), self.dataset[idx]]
+	
 
 
 
