@@ -15,7 +15,6 @@ from scipy.ndimage.filters import gaussian_filter
 from PIL import Image, ImageFilter
 from config import CONFIG
 
-
 normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
 								 std=[0.229, 0.224, 0.225])
 
@@ -40,25 +39,6 @@ sal_gt_transform = transforms.Compose([
 		transforms.ToTensor(),
 	])
 
-# transform_body = transforms.Compose([
-# 	transforms.ToPILImage(),
-# 	transforms.Resize((256,256)),
-# 	transforms.CenterCrop(224),
-# 	transforms.ToTensor(),
-# 	normalize,
-# 	])
-
-
-# config = {
-
-# 	'name' : 'OSIE',
-# 	'train' : range(10),
-# 	'test' : range(10,15),
-# 	'blur_sigma' : 3,
-# 	'first_blur_sigma': 0,
-# 	'gaussian_sigma' : 20,
-# 	'mask_th' : 0.01,
-# }
 
 
 class SequnceDataset(Dataset):
@@ -154,22 +134,16 @@ class SequnceDataset(Dataset):
 	def __getitem__(self, idx):
 		result = list()
 		fov, sal, gts = self._prep(self.dataset[idx])
-
 		for img in fov:
 			if self.transform:
 				img = self.transform(img)
-			img = np.array(img)
 			result.append(img)
 
 		if self.sal_tf:
 			sal = self.sal_tf(sal)
-		result = np.array(result, dtype=np.uint8)
-		sal = np.array(sal)
 
-		return [result, sal, gts, self.dataset[idx]] 
+		return [torch.stack(result), sal, torch.from_numpy(gts), self.dataset[idx]]
 
-		# return [torch.stack(result), sal, torch.from_numpy(gts), self.dataset[idx]]
-	
 
 
 
@@ -228,11 +202,3 @@ class Saliency(Dataset):
 			sal = self.sal_transform(sal)
 
 		return [img, sal]
-
-
-
-
-
-
-
-
