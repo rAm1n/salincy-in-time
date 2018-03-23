@@ -14,6 +14,7 @@ from saliency.dataset import SaliencyDataset
 from scipy.ndimage.filters import gaussian_filter
 from PIL import Image, ImageFilter
 from config import CONFIG
+import glob
 
 normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
 								 std=[0.229, 0.224, 0.225])
@@ -77,11 +78,11 @@ class SequnceDataset(Dataset):
 			imgs = d.get('stimuli_path')
 			maps = d.get('heatmap_path')
 
-			for idx , img in enumerate(imgs):
-				for seq in seqs[idx][self.config[mode]]:
+			for img_idx , img in enumerate(imgs):
+				for user_idx, seq in enumerate(seqs[img_idx][self.config[mode]]):
 					if (seq.shape[0] < 3):
 						continue
-					dataset.append((img, maps[idx], seq))
+					dataset.append((img, maps[img_idx], seq, [img_idx, self.config[mode][user_idx] ]))
 
 			return dataset
 			# return sorted(dataset, key=lambda k: random.random())
@@ -95,14 +96,23 @@ class SequnceDataset(Dataset):
 		foveated_imgs = list()
 		gts = list()
 
-		img , sal, user_seq = pair
+		img , sal, user_seq, [img_idx, user_idx] = pair
+
+		result = self.check_exists(img_idx, user_idx)
+		if result:
+			return result
+
 		img = Image.open(img)
 		sal = Image.open(sal)
+		sal.save(os.path.join(self.config['dataset_dir'], '{0}_{1}_{2}.jpg'.format(img_idx, user_idx, 'sal')))
+
 
 		if self.config['first_blur_sigma']:
 			foveated_imgs.append(img.filter(ImageFilter.GaussianBlur(self.config['first_blur_sigma'])))
 		else:
 			foveated_imgs.append(img)
+		im_ptrn = os.path.join(self.config['dataset_dir'], '{0}_{1}_{2}.jpg'.format(img_idx, user_idx, len(foveated_imgs) -1 ))
+		foveated_imgs[-1].save(im_ptrn)
 
 		bl = img.filter(ImageFilter.GaussianBlur(self.config['blur_sigma']))
 
@@ -113,6 +123,8 @@ class SequnceDataset(Dataset):
 				if distance.euclidean(first_fix, sec_fix) < self.config['distance']:
 					first_sec = sec_fix
 					continue
+				if len(foveated_imgs) > 10:
+					break
 				blurred = np.array(bl)
 				gt = np.zeros(img.size[::-1])
 				gt[sec_fix[0], sec_fix[1]] = 2550
@@ -122,6 +134,9 @@ class SequnceDataset(Dataset):
 				gt[mask] = 255.0
 
 				foveated_imgs.append(Image.fromarray(blurred))
+				im_ptrn = os.path.join(self.config['dataset_dir'], '{0}_{1}_{2}.jpg'.format(img_idx, user_idx, len(foveated_imgs) -1 ))
+				foveated_imgs[-1].save(im_ptrn)
+
 				gt = np.array(Image.fromarray(gt.astype(np.uint8)).resize((100,75)), dtype=np.float32) / 255.0
 				gts.append(gt)
 
@@ -129,7 +144,42 @@ class SequnceDataset(Dataset):
 			except Exception as e:
 				print(e)
 
+		gts = np.array(gts)
+		np.save( os.path.join(self.config['dataset_dir'], '{0}_{1}_{2}.npz'.format(img_idx, user_idx, 'gt')), gts)
+
+
 		return [foveated_imgs, sal, np.array(gts)]
+
+	def check_exists(self, img_idx, user_idx):
+		im_ptrn = os.path.join(self.config['dataset_dir'], '{0}_{1}_{2}.jpg'.format(img_idx, user_idx, '[0-9]*'))
+		sal = os.path.join(self.config['dataset_dir'], '{0}_{1}_{2}.jpg'.format(img_idx, user_idx, 'sal'))
+		gt_ptrn = os.path.join(self.config['dataset_dir'], '{0}_{1}_{2}.npz.npy'.format(img_idx, user_idx, 'gt'))
+
+		imgs = list()
+		gts = list()
+
+		try:
+			imgs_path = sorted(glob.glob(im_ptrn), key = lambda x: int(x.split('.jpg')[0].split('_')[-1]))
+			if imgs_path:
+				for img in imgs_path:
+					imgs.append(Image.open(img))
+
+				sal = Image.open(sal)
+				gts = np.load(gt_ptrn)
+
+				return [ imgs, sal, gts ]
+			else:
+				return False
+
+		except Exception as e:
+			print(imgs_path)
+			print(e)
+			return False
+
+
+
+
+
 
 	def __getitem__(self, idx):
 		result = list()
@@ -142,7 +192,7 @@ class SequnceDataset(Dataset):
 		if self.sal_tf:
 			sal = self.sal_tf(sal)
 
-		return [torch.stack(result), sal, torch.from_numpy(gts), self.dataset[idx]]
+		return [torch.stack(result), sal, torch.from_numpy(gts), self.dataset[idx][0]]
 
 
 
