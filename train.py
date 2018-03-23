@@ -48,7 +48,7 @@ parser.add_argument('--log', default='logs/', metavar='DIR',
 parser.add_argument('--metric', '-m', metavar='METRIC', default='AUC',
 					choices=['AUC', 'NSS'],
 					help='evaluation metric')
-parser.add_argument('-v','--visualize', metavar='DIR', 
+parser.add_argument('-v','--visualize', metavar='DIR',
                     help='path to dataset')
 parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
 					help='number of data loading workers (default: 4)')
@@ -158,7 +158,7 @@ def main():
 		# if args.evaluate:
 		# 	validate(val_loader, model, criterion)
 		# 	return
-		
+
 		# if args.visualize:
 		# 	visualize(val_loader, model)
 		# 	return
@@ -178,11 +178,12 @@ def main():
 			# best_prec1 = max(prec1, best_prec1)
 			save_checkpoint({
 				'epoch': epoch + 1,
+				'user': user,
 				'arch': args.arch,
 				'state_dict': model.state_dict(),
 				# 'best_prec1': best_prec1,
 				'optimizer' : optimizer.state_dict(),
-			}, is_best)
+			})
 
 
 def train(train_loader, model, criterion, optimizer, epoch, config):
@@ -204,11 +205,14 @@ def train(train_loader, model, criterion, optimizer, epoch, config):
 
 		target = target.cuda(async=True)
 		input_var = torch.autograd.Variable(input).cuda(0)
-		target_var = torch.autograd.Variable(target).unsqueeze(1).cuda(1)
+		target_var = torch.autograd.Variable(target).unsqueeze(1).cuda()
 
 		# compute output
 		output = model([input_var, sal, target_var, img_path])
-		loss = criterion(output[:-1], target_var)
+		loss = 0.0
+		for t in range(target_var.size(0)):
+			loss += criterion(output[t], target_var[t])
+		# loss = criterion(output[:-1], target_var)
 
 		# measure accuracy and record loss
 		# acc  = accuracy(output.data.cpu().numpy(), target.cpu().numpy())
@@ -225,12 +229,12 @@ def train(train_loader, model, criterion, optimizer, epoch, config):
 		end = time.time()
 
 		if idx % args.print_freq == 0:
-			logging.info('Epoch: [{0}][{1}/{2}]\t'
+			logging.info('User/Epoch: [{0}][{1}][{2}/{3}]\t'
 				'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
 				'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
 				'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(
 				# 'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'.format(
-				epoch, idx, len(train_loader), batch_time=batch_time,
+				config['train'][0], epoch, idx, len(train_loader), batch_time=batch_time,
 				data_time=data_time, loss=losses))#, top1=top1))
 
 
@@ -279,13 +283,13 @@ def validate(val_loader, model, criterion):
 	return top1.avg
 
 
-def save_checkpoint(state, is_best, filename='encoder.pth.tar'):
-	filename = os.path.join(args.weights, filename)
+def save_checkpoint(state, filename='{0}_{1}.pth.tar'):
+	filename = os.path.join(args.weights, filename.format(state['user'], user['epoch']))
 	torch.save(state, filename)
-	if is_best:
-		logging.warning('***********************saving best model *********************')
-		best = os.path.join(args.weights, 'encoder-best.pth.tar')
-		shutil.copyfile(filename, best)
+	# if is_best:
+	# 	logging.warning('***********************saving best model *********************')
+	# 	best = os.path.join(args.weights, 'encoder-best.pth.tar')
+	# 	shutil.copyfile(filename, best)
 
 
 class AverageMeter(object):
@@ -339,7 +343,7 @@ def visualize(loader, model):
 			mask = Image.fromarray(mask).resize((w,h)).convert('RGB')
 			saliency = np.array(target[idx][0] * 255, dtype=np.uint8)
 			saliency = Image.fromarray(saliency).resize((w,h)).convert('RGB')
-			
+
 			out = Image.new('RGB', (w, h*2))
 			out.paste(Image.blend(img, mask, alpha=0.9).convert('RGB'), (0,0))
 			out.paste(Image.blend(img, saliency, alpha=0.9).convert('RGB'),(0,h))
@@ -478,4 +482,3 @@ if __name__ == '__main__':
 
 
 # train()
-

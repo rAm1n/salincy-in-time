@@ -1,9 +1,8 @@
 
 
-
 CONFIG = {
 	'name' : 'OSIE',
-	'train' : range(15),
+	'train' : range(8,15),
 	'test' : range(10,15),
 	'saliency_train' : range(600),
 	'saliency_test' : range(600,700),
@@ -14,6 +13,5 @@ CONFIG = {
 	'test_mask_th' : 0.5,
 	'distance': 120,
 	'encoder' : 'dvgg16',
+	'dataset_dir': '/media/ramin/data/scanpath/dataset/OSIE/',
 }
-
-

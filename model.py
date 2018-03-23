@@ -21,8 +21,8 @@ class SpatioTemporalSaliency(nn.Module):   # no batch training support b,c,h,w -
 
 
 		self.config = config
-		self.encoder = make_encoder(en_config[config['encoder']]['arch']).cuda(0)
-		self.Custom_CLSTM = Custom_ConvLstm().cuda(1)
+		self.encoder = make_encoder(en_config[config['encoder']]['arch']).cuda()
+		self.Custom_CLSTM = Custom_ConvLstm().cuda()
 
 	def _init_hidden_state(self):
 		return self.CLSTM._init_hidden()
@@ -37,11 +37,11 @@ class SpatioTemporalSaliency(nn.Module):   # no batch training support b,c,h,w -
 
 			result = list()
 			hidden_c = None
-			features = self.encoder.features(images)
+			features = self.encoder.features(images).data
 			for idx in range(t):
 				# features = self.encoder.features(images[[idx]])
 				feat = features[[idx]]
-				feat_copy = Variable(feat.data.unsqueeze(1)).cuda(1)
+				feat_copy = Variable(feat.unsqueeze(1)).cuda()
 				output, [_ , hidde_c] = self.Custom_CLSTM(feat_copy, hidden_c)
 				result.append(output[0,0])
 			return torch.stack(result)
@@ -58,13 +58,13 @@ class SpatioTemporalSaliency(nn.Module):   # no batch training support b,c,h,w -
 			hidden_c = None
 			image = images[[0]]
 			for idx in range(itr):
-				features = self.encoder.features(image)
-				feat_copy = Variable(features.data.unsqueeze(1)).cuda(1)
+				features = self.encoder.features(image).data
+				feat_copy = Variable(features.unsqueeze(1)).cuda()
 				output, [_ , hidde_c] = self.Custom_CLSTM(feat_copy, hidden_c)
 				result.append(output[0,0])
 
 				# prep for next step
-				
+
 				blurred = np.array(img.filter(ImageFilter.GaussianBlur(self.config['blur_sigma'])))
 				mask = np.array(Image.fromarray(output[0,0,0].data.cpu().numpy() * 255).resize((800,600))) / 255.0
 				mask = (mask > self.config['test_mask_th'])
@@ -113,4 +113,3 @@ class SpatioTemporalSaliency(nn.Module):   # no batch training support b,c,h,w -
 			filename = os.path.join(path, filename)
 
 		self.load_state_dict(torch.load(filename))
-
