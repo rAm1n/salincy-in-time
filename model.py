@@ -42,7 +42,7 @@ class SpatioTemporalSaliency(nn.Module):   # no batch training support b,c,h,w -
 				# features = self.encoder.features(images[[idx]])
 				feat = features[[idx]]
 				feat_copy = Variable(feat.unsqueeze(1)).cuda()
-				output, [_ , hidde_c] = self.Custom_CLSTM(feat_copy, hidden_c)
+				output, [_ , hidden_c] = self.Custom_CLSTM(feat_copy, hidden_c)
 				result.append(output[0,0])
 			return torch.stack(result)
 
@@ -60,7 +60,7 @@ class SpatioTemporalSaliency(nn.Module):   # no batch training support b,c,h,w -
 			for idx in range(itr):
 				features = self.encoder.features(image).data
 				feat_copy = Variable(features.unsqueeze(1), volatile=False).cuda()
-				output, [_ , hidde_c] = self.Custom_CLSTM(feat_copy, hidden_c)
+				output, [_ , hidden_c] = self.Custom_CLSTM(feat_copy, hidden_c)
 				result.append(output[0,0])
 
 				# prep for next step

@@ -125,7 +125,7 @@ def main():
 
 	bad_list = set([231,310,372,317,436,441,447,541,535,675,661])
 
-	for epoch in [5]:
+	for epoch in [0]:
 		for user in CONFIG['test']:
 			print('starting user {0}'.format(user+1))
 			config['test'] = [user]
@@ -156,6 +156,8 @@ def main():
 				# if (img_idx % 100) == 0:
 				# 	print(img_idx, '/', len(test_dataset))
 			print(time.time()-start)
+
+
 
 	# np.save('/media/ramin/data/scanpath/eval/results_5.npy', masks)
 

@@ -37,7 +37,7 @@ from config import CONFIG
 
 parser = argparse.ArgumentParser(description='Scanpath prediction')
 
-parser.add_argument('--weights', default='/media/ramin/data/scanpath/weights/', metavar='DIR',
+parser.add_argument('--weights', default='/media/ramin/data/scanpath/weights-final/', metavar='DIR',
 
 					help='path to dataset')
 parser.add_argument('--arch', '-a', metavar='ARCH', default='dvgg16',
@@ -50,15 +50,14 @@ parser.add_argument('--metric', '-m', metavar='METRIC', default='AUC',
 					choices=['AUC', 'NSS'],
 					help='evaluation metric')
 
-parser.add_argument('-v','--visualize', default='/media/ramin/data/scanpath/viz/', metavar='DIR',
+parser.add_argument('-v','--visualize', default='/media/ramin/data/scanpath/viz-final/', metavar='DIR',
                     help='path to dataset')
 
 parser.add_argument('--visualize-count', default=50, type=int, metavar='N',
 					help='number of images to visualize')
 parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
 					help='number of data loading workers (default: 4)')
-parser.add_argument('--epochs', default=2, type=int, metavar='N',
-
+parser.add_argument('--epochs', default=5, type=int, metavar='N',
 					help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
 					help='manual epoch number (useful on restarts)')
@@ -109,12 +108,12 @@ def main():
 	# 	# logging.info("=> using pre-trained model '{}'".format(args.arch))
 	# 	# model = models.__dict__[args.arch](pretrained=True)
 	# else:
-	logging.info("=> creating model '{}'".format(args.arch))
-	model = SpatioTemporalSaliency(CONFIG)
-	model._initialize_weights()
-
-	# define loss function (criterion) and optimizer
-	criterion = nn.BCELoss().cuda()
+	# logging.info("=> creating model '{}'".format(args.arch))
+	# model = SpatioTemporalSaliency(CONFIG)
+	# model._initialize_weights()
+	#
+	# # define loss function (criterion) and optimizer
+	# criterion = nn.BCELoss().cuda()
 
 #	optimizer = torch.optim.SGD(model.parameters(), args.lr,
 #								momentum=args.momentum,
@@ -122,11 +121,12 @@ def main():
 
 	# encoder_optimizer = torch.optim.Adam(model.encoder.parameters(), args.lr,
 	# 							betas=(0.9, 0.999), eps=1e-08, weight_decay=args.weight_decay)
-	for param in model.encoder.parameters():
-		param.requires_grad = False
 
-	optimizer = torch.optim.Adam(model.Custom_CLSTM.parameters(), args.lr,
-								betas=(0.9, 0.999), eps=1e-08, weight_decay=args.weight_decay)
+	# for param in model.encoder.parameters():
+	# 	param.requires_grad = False
+	#
+	# optimizer = torch.optim.Adam(model.Custom_CLSTM.parameters(), args.lr,
+	# 							betas=(0.9, 0.999), eps=1e-08, weight_decay=args.weight_decay)
 
 	# optionally resume from a checkpoint
 	cudnn.benchmark = True
@@ -137,6 +137,19 @@ def main():
 	for user in CONFIG['train']:
 		config['train'] = [user]
 		train_dataset = SequnceDataset(config, 'train')
+
+		logging.info("=> creating model '{}'".format(args.arch))
+		model = SpatioTemporalSaliency(config)
+		model._initialize_weights()
+
+		for param in model.encoder.parameters():
+			param.requires_grad = False
+
+		criterion = nn.BCELoss().cuda()
+
+		optimizer = torch.optim.Adam(model.Custom_CLSTM.parameters(), args.lr,
+									betas=(0.9, 0.999), eps=1e-08, weight_decay=args.weight_decay)
+
 
 		if args.resume:
 			if os.path.isfile(args.resume):
@@ -337,6 +350,7 @@ def accuracy(output, target):
 
 def visualize(loader, model, user, epoch):
 	counter = 0
+	model.eval()
 
 	path = os.path.join(args.visualize, user, epoch)
 	if not os.path.exists(path):
@@ -355,8 +369,11 @@ def visualize(loader, model, user, epoch):
 		img = Image.open(img_path)
 		w, h = img.size
 
+		len_out = output.shape[0]
 
 		for seq_idx, tar in enumerate(target):
+			if seq_idx >= len_out:
+				break
 			mask = np.array(output[seq_idx][0] * 255, dtype=np.uint8)
 			mask = Image.fromarray(mask).resize((w,h)).convert('RGB')
 			saliency = np.array(tar * 255, dtype=np.uint8)
