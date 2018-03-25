@@ -2,7 +2,7 @@
 
 CONFIG = {
 	'name' : 'OSIE',
-	'train' : range(9,15),
+	'train' : range(8),
 	'test' : range(15),
 	'saliency_train' : range(600),
 	'saliency_test' : range(600,700),
