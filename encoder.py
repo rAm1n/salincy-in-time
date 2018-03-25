@@ -11,12 +11,12 @@ en_config = {
 	'vgg16':{
 			'arch' : ['64', '64', 'M', '128','128', 'M', '256', '256', '256', 'M',
 				'512', '512', '512', 'M', '512' , '512', '512', 'M'],
-			'scale_factor' : 32 
+			'scale_factor' : 32
 		},
 	'dvgg16' :{
 			'arch' : ['64', '64', 'M', '128','128', 'M', '256', '256', '256', 'M',
 				'512', '512', '512', '512d', '512d', '512d'],
-			'scale_factor' : 8 
+			'scale_factor' : 8
 		}
 }
 
@@ -166,10 +166,3 @@ def make_encoder(config, pretrained=False, **kwargs):
 # 				m.weight.data = vgg.get('features.{0}.weight'.format(idx))
 # 				if m.bias is not None:
 # 					m.bias.data = vgg.get('features.{0}.bias'.format(idx))
-
-
-
-
-
-
-

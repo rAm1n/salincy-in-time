@@ -5,7 +5,7 @@ function rv=doComparison(data1,data2)
 %dimension
 
 % Parameters for the proposed algorithm
-sz = [1024 768];%changed to size from JOV experiment
+sz = [800 600];%changed to size from JOV experiment
 %CHANGE GLOBAL THRESH ACCORDINGLY?
 globalThreshold = 0.1*sqrt(sz(1)^2+sz(2)^2); % Diagonal/10 ~ 5 degrees.
 directionThreshold = 45;

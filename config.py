@@ -13,5 +13,5 @@ CONFIG = {
 	'test_mask_th' : 0.5,
 	'distance': 150,
 	'encoder' : 'dvgg16',
-	'dataset_dir': '/media/ramin/data/scanpath/dataset/OSIE-3/',
+	'dataset_dir': '/media/ramin/data/scanpath/dataset/OSIE-2/',
 }
