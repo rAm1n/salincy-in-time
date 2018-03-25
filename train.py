@@ -37,11 +37,8 @@ from config import CONFIG
 
 parser = argparse.ArgumentParser(description='Scanpath prediction')
 
-<<<<<<< HEAD
 parser.add_argument('--weights', default='/media/ramin/data/scanpath/weights/', metavar='DIR',
-=======
-parser.add_argument('--weights', default='weights/', metavar='DIR',
->>>>>>> e85781d8effbdd52a664661eeacbf239ffe7c7a1
+
 					help='path to dataset')
 parser.add_argument('--arch', '-a', metavar='ARCH', default='dvgg16',
 					choices=['vgg16', 'dvgg16'],
@@ -52,24 +49,16 @@ parser.add_argument('--log', default='logs/', metavar='DIR',
 parser.add_argument('--metric', '-m', metavar='METRIC', default='AUC',
 					choices=['AUC', 'NSS'],
 					help='evaluation metric')
-<<<<<<< HEAD
+
 parser.add_argument('-v','--visualize', default='/media/ramin/data/scanpath/viz/', metavar='DIR',
                     help='path to dataset')
-=======
 
-parser.add_argument('-v','--visualize', default='/media/ramin/data/scanpath/viz', metavar='DIR',
-                    help='path to dataset')
-
->>>>>>> e85781d8effbdd52a664661eeacbf239ffe7c7a1
 parser.add_argument('--visualize-count', default=50, type=int, metavar='N',
 					help='number of images to visualize')
 parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
 					help='number of data loading workers (default: 4)')
-<<<<<<< HEAD
 parser.add_argument('--epochs', default=2, type=int, metavar='N',
-=======
-parser.add_argument('--epochs', default=10, type=int, metavar='N',
->>>>>>> e85781d8effbdd52a664661eeacbf239ffe7c7a1
+
 					help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
 					help='manual epoch number (useful on restarts)')

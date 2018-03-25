@@ -82,7 +82,7 @@ best_prec1 = 0
 
 
 def main():
-	global args, best_prec1, model, train_dataset, val_dataset, masks
+	global args, best_prec1, model, train_dataset, val_dataset, masks, input_var, input, test_dataset, img_path, sal, target
 	args = parser.parse_args()
 
 
@@ -157,7 +157,7 @@ def main():
 				# 	print(img_idx, '/', len(test_dataset))
 			print(time.time()-start)
 
-	np.save('/media/ramin/data/scanpath/eval/results_5.npy', masks)
+	# np.save('/media/ramin/data/scanpath/eval/results_5.npy', masks)
 
 if __name__ == '__main__':
 	main()
