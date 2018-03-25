@@ -37,7 +37,7 @@ from config import CONFIG
 
 parser = argparse.ArgumentParser(description='Scanpath prediction')
 
-parser.add_argument('--weights', default='weights', metavar='DIR',
+parser.add_argument('--weights', default='/media/ramin/data/scanpath/weights/', metavar='DIR',
 					help='path to dataset')
 parser.add_argument('--arch', '-a', metavar='ARCH', default='dvgg16',
 					choices=['vgg16', 'dvgg16'],
@@ -48,11 +48,13 @@ parser.add_argument('--log', default='logs/', metavar='DIR',
 parser.add_argument('--metric', '-m', metavar='METRIC', default='AUC',
 					choices=['AUC', 'NSS'],
 					help='evaluation metric')
-parser.add_argument('-v','--visualize', metavar='DIR',
+parser.add_argument('-v','--visualize', default='/media/ramin/data/scanpath/viz/', metavar='DIR',
                     help='path to dataset')
+parser.add_argument('--visualize-count', default=50, type=int, metavar='N',
+					help='number of images to visualize')
 parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
 					help='number of data loading workers (default: 4)')
-parser.add_argument('--epochs', default=50, type=int, metavar='N',
+parser.add_argument('--epochs', default=2, type=int, metavar='N',
 					help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
 					help='manual epoch number (useful on restarts)')
@@ -137,7 +139,7 @@ def main():
 				logging.info("=> loading checkpoint '{}'".format(args.resume))
 				checkpoint = torch.load(args.resume)
 				args.start_epoch = checkpoint['epoch']
-				best_prec1 = checkpoint['best_prec1']
+				# best_prec1 = checkpoint['best_prec1']
 				model.load_state_dict(checkpoint['state_dict'])
 				optimizer.load_state_dict(checkpoint['optimizer'])
 				logging.info("=> loaded checkpoint '{}' (epoch {})"
@@ -160,7 +162,7 @@ def main():
 		# 	return
 
 		# if args.visualize:
-		# 	visualize(val_loader, model)
+		# 	visualize(train_loader, model, user, epoch)
 		# 	return
 
 		for epoch in range(args.start_epoch, args.epochs):
@@ -170,6 +172,7 @@ def main():
 			# train for one epoch
 			train(train_loader, model, criterion, optimizer, epoch, config)
 
+			visualize(train_loader, model, str(user), str(epoch))
 			# evaluate on validation set
 			# prec1 = validate(val_loader, model, criterion)
 
@@ -204,7 +207,7 @@ def train(train_loader, model, criterion, optimizer, epoch, config):
 		data_time.update(time.time() - end)
 
 		target = target.cuda(async=True)
-		input_var = torch.autograd.Variable(input).cuda(0)
+		input_var = torch.autograd.Variable(input, volatile=True).cuda(0)
 		target_var = torch.autograd.Variable(target).unsqueeze(1).cuda()
 
 		# compute output
@@ -284,7 +287,7 @@ def validate(val_loader, model, criterion):
 
 
 def save_checkpoint(state, filename='{0}_{1}.pth.tar'):
-	filename = os.path.join(args.weights, filename.format(state['user'], user['epoch']))
+	filename = os.path.join(args.weights, filename.format(state['user'], state['epoch']))
 	torch.save(state, filename)
 	# if is_best:
 	# 	logging.warning('***********************saving best model *********************')
@@ -328,157 +331,41 @@ def accuracy(output, target):
 
 	return np.array(result)
 
-def visualize(loader, model):
+def visualize(loader, model, user, epoch):
 	counter = 0
-	for batch_idx, (input, target) in enumerate(loader):
+
+	path = os.path.join(args.visualize, user, epoch)
+	if not os.path.exists(path):
+	    os.makedirs(path)
+
+	for idx, (input, sal, target, img_path) in enumerate(loader):
+		# measure data loading time
+		counter+=1
+		if counter > args.visualize_count:
+			break
+
 		target = target.cuda(async=True)
-		input_var = torch.autograd.Variable(input, volatile=True).cuda()
-		target_var = torch.autograd.Variable(target, volatile=True)
-		output = model(input_var).data.cpu().numpy()
-		for idx, img in enumerate(input):
-			img = Image.open(loader.dataset.dataset[counter][0])
-			counter+=1
-			w, h = img.size
-			mask = np.array(output[idx][0] * 255, dtype=np.uint8)
+		input_var = torch.autograd.Variable(input).cuda(0)
+		target_var = torch.autograd.Variable(target).unsqueeze(1).cuda()
+		output = model([input_var, sal, target_var, img_path]).data.cpu().numpy()
+		img = Image.open(img_path)
+		w, h = img.size
+
+
+		for seq_idx, tar in enumerate(target):
+			mask = np.array(output[seq_idx][0] * 255, dtype=np.uint8)
 			mask = Image.fromarray(mask).resize((w,h)).convert('RGB')
-			saliency = np.array(target[idx][0] * 255, dtype=np.uint8)
+			saliency = np.array(tar * 255, dtype=np.uint8)
 			saliency = Image.fromarray(saliency).resize((w,h)).convert('RGB')
 
 			out = Image.new('RGB', (w, h*2))
-			out.paste(Image.blend(img, mask, alpha=0.9).convert('RGB'), (0,0))
-			out.paste(Image.blend(img, saliency, alpha=0.9).convert('RGB'),(0,h))
+			out.paste(Image.blend(img, mask, alpha=0.7).convert('RGB'), (0,0))
+			out.paste(Image.blend(img, saliency, alpha=0.7).convert('RGB'),(0,h))
 
-			out_path = os.path.join(args.visualize, '{0}-{1}.jpg'.format(batch_idx, idx))
+			out_path = os.path.join(path, '{0}-{1}.jpg'.format(idx, seq_idx))
 			out.save(out_path)
 
 
 
 if __name__ == '__main__':
 	main()
-
-
-
-# def train():
-
-# 	print('building model')
-# 	model = SpatioTemporalSaliency(activation=act)
-# 	print('initializing')
-# 	model._initialize_weights(True)
-# 	print("let's bring on gpus!")
-# 	model = model.cuda()
-
-
-# 	if model.activation == 'softmax':
-# 		crit = nn.KLDivLoss()
-# 	elif model.activation == 'sigmoid':
-# 		crit = nn.MSELoss()
-# 	else:
-# 		crit = nn.MSELoss()
-
-# 	if opt == 'ADAM':
-# 		optimizer = torch.optim.Adam(model.parameters(), lr=lr, betas=(B1, B2), eps=eps)
-# 	elif opt=='SGD':
-# 		optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=0.9)
-
-
-# 	if not fine_tune:
-# 		for param in model.encoder.features.parameters():
-# 				param.requires_grad = False
-
-
-# 	print('prep dataset')
-
-# 	d = Salicon(size=size, gamma=gamma)
-# 	d.load()
-
-# 	start = time.time()
-# 	l = list()
-# 	for ep in range(epoch):
-# 		total_size = np.array([len(d._map['train'][item]) for item in d._map['train'] ]).sum()
-# 		iteration = total_size // batch_size
-# 		for step in range(iteration):
-# 			if act=='softmax':
-# 				batch = d.next_batch(batch_size, mode='train', norm='L1')
-# 			else:
-# 				batch = d.next_batch(batch_size, mode='train', norm=None)
-
-# 			images = [img[0] for img in batch]
-# 			images = torch.stack(images)
-
-# 			seq = np.array([img[1] for img in batch], dtype=np.float32)
-# 			seq_input = torch.from_numpy(seq[:,:-1,...]).unsqueeze(2)
-# 			#target = torch.from_numpy(seq[:,1:,...]).unsqueeze(2)
-# 			target = torch.from_numpy(seq).unsqueeze(2)
-
-# 			images = Variable(images.cuda(), requires_grad=True)
-# 			seq_input = Variable(seq_input.cuda(), requires_grad=True)
-# 			target = Variable(target.cuda(), requires_grad=False)
-
-# 			#torch.cuda.synchronize()
-# 			output = model(images, seq_input)
-# 			loss = 0
-# 			for t in range(target.size(1)):
-# 				loss += crit(output[:,t,...].squeeze(), target[:,t,...].squeeze())
-
-# 			try:
-# 				optimizer.zero_grad()
-# 				loss.backward()
-# 				optimizer.step()
-# 				l.append(loss.data[0])
-# 				#torch.cuda.synchronize()
-# 			except Exception as x:
-# 				print(x)
-# 				return 0
-
-
-# 			if step%20 == 0 and step != 0:
-# 				print('epoch {0} , step {1} / {2}   , mean-loss: {3}  ,  time: {4}'.format(ep, step, iteration, np.array(l).mean(), time.time()-start))
-# 				l = list()
-# 				start = time.time()
-
-# 			if step%100 == 0 and step !=0:
-# 				try:
-# 					#make video
-# 					print(step)
-# 					print("now generating video!")
-# 					video = cv2.VideoWriter()
-# 					#success = video.open("{0}/generated_conv_lstm_video_{1}_{2}.avi".format(vid_path, ep, step), fourcc, 4, im_size, True)
-# 					writer = skvideo.io.FFmpegWriter("{0}/generated_conv_lstm_video_{1}_{2}.avi".format(vid_path, ep, step))
-# 					model.eval()
-# 					img = d.next_batch(batch_size=1, mode='test')[0][0]
-# 					img_resize = img.resize(im_size)
-# 					img_processed = Variable(img_processor(img).unsqueeze(0).cuda())
-
-# 					output = model(img_processed, sequence=None, itr=64)
-# 					output = output.permute(0,1,4,3,2)
-# 					ims = output[0].squeeze().data.cpu().numpy()
-# 					print(ims.shape)
-# 					for i in range(ims.shape[0]):
-# 						if act=='sigmoid':
-# 							x_1_r = np.uint8((np.maximum(ims[i], 0)) * 255)
-# 						elif act=='softmax':
-# 							x_1_r = np.uint8((np.maximum(ims[i], 0) / ims[i].max()) * 255)
-# 						else:
-# 							x_1_r = np.uint8(np.minimum(np.maximum(ims[i], 0), 255))
-# 							x_1_r = ((x_1_r - x_1_r.min()) / (x_1_r.max() - x_1_r.min())) * 255.0
-
-# 						mask = Image.fromarray(x_1_r).resize(im_size).convert('RGB')
-# 						new_im = Image.blend(img_resize, mask, alpha=0.7).convert('RGB')
-# 						#new_im = cv2.resize(x_1_r, (256,256))
-# 						#video.write(np.asarray(new_im))
-# 						writer.writeFrame(new_im)
-# 					#video.release()
-# 					writer.close()
-# 					model.train()
-
-# 				except Exception as x:
-# 					print(x)
-
-# 			if step%20000 == 0:
-# 				model.save_checkpoint(model.state_dict(), ep, step, path=ck_path)
-
-# 			del images, seq_input, target, loss
-
-
-
-# train()

@@ -4,6 +4,14 @@
 import numpy as np
 from scipy.misc import imresize
 from scipy.stats import entropy
+from scipy.misc import imread
+import matlab.engine
+import time
+import os
+
+
+
+
 
 
 """
@@ -234,3 +242,23 @@ def roc_curve(predicted, actual, cls):
 	tp = np.hstack((0.0, tp, 1.0))
 	fp = np.hstack((0.0, fp, 1.0))
 	return tp, fp
+
+
+def make_engine():
+	return matlab.engine.start_matlab()
+
+
+def MultiMatch(eng, data1, data2, check=False):
+	try:
+		data1 = matlab.double(data1.tolist())
+		data2 = matlab.double(data2.tolist())
+		if (check) and ('metrics/MultiMatchToolbox' not in eng.pwd()) :
+			eng.cd('metrics/MultiMatchToolbox/')
+		return eng.doComparison(data1,data2)
+
+	except Exception as e:
+		print(e)
+		return False
+
+def ScanMatch(eng, data1, data2):
+	pass
