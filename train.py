@@ -37,7 +37,7 @@ from config import CONFIG
 
 parser = argparse.ArgumentParser(description='Scanpath prediction')
 
-parser.add_argument('--weights', default='/media/ramin/data/scanpath/weights-final/', metavar='DIR',
+parser.add_argument('--weights', default='/media/ramin/data/scanpath/weights-final-1/', metavar='DIR',
 
 					help='path to dataset')
 parser.add_argument('--arch', '-a', metavar='ARCH', default='dvgg16',
@@ -50,7 +50,7 @@ parser.add_argument('--metric', '-m', metavar='METRIC', default='AUC',
 					choices=['AUC', 'NSS'],
 					help='evaluation metric')
 
-parser.add_argument('-v','--visualize', default='/media/ramin/data/scanpath/viz-final/', metavar='DIR',
+parser.add_argument('-v','--visualize', default='/media/ramin/data/scanpath/viz-final-1/', metavar='DIR',
                     help='path to dataset')
 
 parser.add_argument('--visualize-count', default=50, type=int, metavar='N',
@@ -385,7 +385,6 @@ def visualize(loader, model, user, epoch):
 
 			out_path = os.path.join(path, '{0}-{1}.jpg'.format(idx, seq_idx))
 			out.save(out_path)
-
 
 
 if __name__ == '__main__':

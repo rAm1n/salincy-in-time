@@ -30,7 +30,7 @@ from config import CONFIG
 
 parser = argparse.ArgumentParser(description='Scanpath prediction')
 
-parser.add_argument('--weights', default='weights/', metavar='DIR',
+parser.add_argument('--weights', default='/media/ramin/data/scanpath/weights-final/', metavar='DIR',
 					help='path to dataset')
 parser.add_argument('--arch', '-a', metavar='ARCH', default='dvgg16',
 					choices=['vgg16', 'dvgg16'],
@@ -42,7 +42,7 @@ parser.add_argument('--metric', '-m', metavar='METRIC', default='AUC',
 					choices=['AUC', 'NSS'],
 					help='evaluation metric')
 
-parser.add_argument('-v','--visualize', default='/media/ramin/data/scanpath/viz', metavar='DIR',
+parser.add_argument('-v','--visualize', default='/media/ramin/data/scanpath/viz-single/', metavar='DIR',
 					help='path to dataset')
 
 parser.add_argument('--visualize-count', default=50, type=int, metavar='N',
@@ -82,7 +82,7 @@ best_prec1 = 0
 
 
 def main():
-	global args, best_prec1, model, train_dataset, val_dataset, masks, input_var, input, test_dataset, img_path, sal, target
+	global args, best_prec1, model, train_dataset, val_dataset
 	args = parser.parse_args()
 
 
@@ -100,7 +100,8 @@ def main():
 	# 	# logging.info("=> using pre-trained model '{}'".format(args.arch))
 	# 	# model = models.__dict__[args.arch](pretrained=True)
 	# else:
-	logging.info("=> creating model '{}'".format(args.arch))
+	# logging.info("=> creating model '{}'".format(args.arch))
+
 	model = SpatioTemporalSaliency(CONFIG)
 	model._initialize_weights()
 	model.eval()
@@ -125,41 +126,63 @@ def main():
 
 	bad_list = set([231,310,372,317,436,441,447,541,535,675,661])
 
-	for epoch in [0]:
+	for epoch in range(1,epochs+1):
+		print('starting forward pass for epoch {0}'.format(epoch))
 		for user in CONFIG['test']:
 			print('starting user {0}'.format(user+1))
 			config['test'] = [user]
-			test_dataset = SequnceDataset(config, 'test')
+			test_dataset = SequnceDataset(config, 'train')
 
 			# Let's resume weights.
 			w_path = os.path.join(args.weights, '{0}_{1}.pth.tar'.format(user, epoch))
 			if os.path.isfile(w_path):
-				logging.info("=> loading checkpoint '{}'".format(w_path))
+				logging.info("=> loading checkpoint '{}'".format(args.resume))
 				checkpoint = torch.load(w_path)
 				args.start_epoch = checkpoint['epoch']
 				model.load_state_dict(checkpoint['state_dict'])
 				logging.info("=> loaded checkpoint '{}' (epoch {})"
-					  .format(w_path, checkpoint['epoch']))
+					  .format(args.resume, checkpoint['epoch']))
 			else:
-				logging.info("=> no checkpoint found at '{}'".format(w_path))
-			print('starting forward pass for epoch {0}'.format(epoch))
+				logging.info("=> no checkpoint found at '{}'".format(args.resume))
+
 			start = time.time()
-			for input, sal, target, img_path in test_dataset:
+			for img_idx, (input, sal, target, img_path) in enumerate(test_dataset):
 				img_idx = int(img_path.split('/')[-1].split('.jpg')[0]) - 1001
 				print(epoch, user, img_idx, len(test_dataset))
 				if img_idx in bad_list:
 					continue
 				# measure data loading time
-				input_var = torch.autograd.Variable(input, volatile=True).cuda()
+				input_var = torch.autograd.Variable(input, volatile=True).cuda(0)
 				output = model([input_var, sal, target, img_path])
-				masks[epoch-1][user][img_idx] = output.data.squeeze()
-				# if (img_idx % 100) == 0:
-				# 	print(img_idx, '/', len(test_dataset))
+				masks[epoch-1][user][img_idx] = output[0,0]
+
+				img = Image.open(img_path)
+				w, h = img.size
+
+				len_out = output.shape[0]
+
+				counter = 0
+				path = os.path.join(args.visualize, str(user), str(epoch))
+				if not os.path.exists(path):
+					os.makedirs(path)
+
+				for seq_idx, tar in enumerate(output):
+					if seq_idx >= len_out:
+						break
+					mask = np.array(output[seq_idx][0] * 255, dtype=np.uint8)
+					mask = Image.fromarray(mask).resize((w,h)).convert('RGB')
+					saliency = np.array(tar * 255, dtype=np.uint8)
+					saliency = Image.fromarray(saliency).resize((w,h)).convert('RGB')
+
+					out = Image.new('RGB', (w, h*2))
+					out.paste(Image.blend(img, mask, alpha=0.7).convert('RGB'), (0,0))
+					out.paste(Image.blend(img, saliency, alpha=0.7).convert('RGB'),(0,h))
+
+					out_path = os.path.join(path, '{0}-{1}.jpg'.format(img_idx, seq_idx))
+					out.save(out_path)
+
 			print(time.time()-start)
 
-
-
-	# np.save('/media/ramin/data/scanpath/eval/results_5.npy', masks)
 
 if __name__ == '__main__':
 	main()

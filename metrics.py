@@ -8,9 +8,7 @@ from scipy.misc import imread
 import matlab.engine
 import time
 import os
-
-
-
+from utils import extract_img_sequences, extract_model_fixations
 
 
 
@@ -248,14 +246,26 @@ def make_engine():
 	return matlab.engine.start_matlab()
 
 
-def MultiMatch(eng, data1, data2, check=False):
+def _MultiMatch(eng, data1, data2, check=False):
 	try:
 		data1 = matlab.double(data1.tolist())
 		data2 = matlab.double(data2.tolist())
 		if (check) and ('metrics/MultiMatchToolbox' not in eng.pwd()) :
 			eng.cd('metrics/MultiMatchToolbox/')
 		return eng.doComparison(data1,data2)
+	except Exception as e:
+		print(e)
+		return False
 
+
+def MultiMatch(eng, model_output, seqs):
+	try:
+		model_fixations = extract_model_fixations(model_output)
+		seqs = extract_img_sequences(seqs)
+		result = list()
+		for seq in seqs:
+			result.append(_MultiMatch(eng, model_fixations, seq))
+		return np.array(result).squeeze()
 	except Exception as e:
 		print(e)
 		return False
