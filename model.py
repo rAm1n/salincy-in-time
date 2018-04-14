@@ -58,6 +58,7 @@ class SpatioTemporalSaliency(nn.Module):   # no batch training support b,c,h,w -
 			result = list()
 			hidden_c = None
 			image = images[[0]]
+			mask_acc = np.zeros((img.shape[1], img.shape[0]))
 			for idx in range(itr):
 				features = self.encoder.features(image).data
 				feat_copy = Variable(features.unsqueeze(1), volatile=False).cuda()
@@ -80,6 +81,8 @@ class SpatioTemporalSaliency(nn.Module):   # no batch training support b,c,h,w -
 
 				mask = np.array(Image.fromarray(mask).resize((800,600))) / 255.0
 				mask = (mask > self.config['test_mask_th'])
+				mask_acc[mask] = 1
+				mask = (mask_acc > self.config['test_mask_th'])
 				blurred[mask] = np.array(img)[mask]
 
 
