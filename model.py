@@ -13,6 +13,7 @@ import os
 from config import CONFIG
 from dataset import transform
 from PIL import Image, ImageFilter
+from scipy.ndimage.filters import gaussian_filter
 
 class SpatioTemporalSaliency(nn.Module):   # no batch training support b,c,h,w ---> assert b == 1
 
@@ -64,11 +65,24 @@ class SpatioTemporalSaliency(nn.Module):   # no batch training support b,c,h,w -
 				result.append(output[0,0])
 
 				# prep for next step
-
 				blurred = np.array(img.filter(ImageFilter.GaussianBlur(self.config['blur_sigma'])))
-				mask = np.array(Image.fromarray(output[0,0,0].data.cpu().numpy() * 255).resize((800,600))) / 255.0
+				h, w, _ = blurred.shape
+				mask = output[0,0,0].data.cpu().numpy() * 255
+				mask = np.array(Image.fromarray(mask).resize((w,h)))
+				x_max, y_max = np.unravel_index(mask.argmax(), mask.shape)
+
+				# gt = np.zeros((mask.shape[0], mask.shape[1]))
+				# gt[x_max, y_max] = 2550
+				# gt = gaussian_filter(gt, self.config['gaussian_sigma'])
+				# mask = (gt > self.config['mask_th'])
+				# blurred[mask] = np.array(img)[mask]
+
+
+				mask = np.array(Image.fromarray(mask).resize((800,600))) / 255.0
 				mask = (mask > self.config['test_mask_th'])
 				blurred[mask] = np.array(img)[mask]
+
+
 				image = Image.fromarray(blurred)
 				image = transform(image)
 				image = Variable(image.unsqueeze(0)).cuda(0)

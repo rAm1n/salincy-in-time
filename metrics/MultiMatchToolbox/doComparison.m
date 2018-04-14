@@ -35,13 +35,13 @@ else
     % ... using the proposed method
     [sp1,sp2,rv,path,M_assignment,ki,kj] = mainProposed(sp1,sp2,globalThreshold,directionThreshold,durationThreshold,sz);
 
-    %print results to the prompt
-    disp(['Vector similarity = ',num2str(rv(1))])
-    disp(['Direction similarity = ',num2str(rv(2))])
-    disp(['Length similarity = ',num2str(rv(3))])
-    disp(['Position similarity = ',num2str(rv(4))])
-    disp(['Duration similarity = ',num2str(rv(5))])
-    
+%     print results to the prompt
+%     disp(['Vector similarity = ',num2str(rv(1))])
+%     disp(['Direction similarity = ',num2str(rv(2))])
+%     disp(['Length similarity = ',num2str(rv(3))])
+%     disp(['Position similarity = ',num2str(rv(4))])
+%     disp(['Duration similarity = ',num2str(rv(5))])
+%     
     else
         rv=NaN;
     end

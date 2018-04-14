@@ -387,6 +387,5 @@ def visualize(loader, model, user, epoch):
 			out.save(out_path)
 
 
-
 if __name__ == '__main__':
 	main()

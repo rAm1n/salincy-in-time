@@ -8,9 +8,7 @@ from scipy.misc import imread
 import matlab.engine
 import time
 import os
-
-
-
+from utils import extract_img_sequences, extract_model_fixations
 
 
 
@@ -210,52 +208,62 @@ def SAUC(saliency_map, fixation_map, shuf_map=np.zeros((480,640)), step_size=.01
 
 def AUC(salMap, fixMap):
 	"""Computes AUC for given saliency map 'salMap' and given
-	fixation map 'fixMap'"""
+	fixation map 'fixMap'
+	"""
+	def area_under_curve(predicted, actual, labelset):
+		def roc_curve(predicted, actual, cls):
+			si = np.argsort(-predicted)
+			tp = np.cumsum(np.single(actual[si]==cls))
+			fp = np.cumsum(np.single(actual[si]!=cls))
+			tp = tp/np.sum(actual==cls)
+			fp = fp/np.sum(actual!=cls)
+			tp = np.hstack((0.0, tp, 1.0))
+			fp = np.hstack((0.0, fp, 1.0))
+			return tp, fp
+		def auc_from_roc(tp, fp):
+			h = np.diff(fp)
+			auc = np.sum(h*(tp[1:]+tp[:-1]))/2.0
+			return auc
+
+		tp, fp = roc_curve(predicted, actual, np.max(labelset))
+		auc = auc_from_roc(tp, fp)
+		return auc
+
 	fixMap = (fixMap>0.7).astype(int)
 	salShape = salMap.shape
 	fixShape = fixMap.shape
-	predicted = salMap.reshape(salShape[0]*salShape[1], -1,
-							   order='F').flatten()
-	actual = fixMap.reshape(fixShape[0]*fixShape[1], -1,
-							order='F').flatten()
+
+	predicted = salMap.reshape(salShape[0]*salShape[1], -1, order='F').flatten()
+	actual = fixMap.reshape(fixShape[0]*fixShape[1], -1, order='F').flatten()
 	labelset = np.arange(2)
-	auc = area_under_curve(predicted, actual, labelset)
-	return auc
 
-
-def area_under_curve(predicted, actual, labelset):
-	tp, fp = roc_curve(predicted, actual, np.max(labelset))
-	auc = auc_from_roc(tp, fp)
-	return auc
-
-def auc_from_roc(tp, fp):
-	h = np.diff(fp)
-	auc = np.sum(h*(tp[1:]+tp[:-1]))/2.0
-	return auc
-
-def roc_curve(predicted, actual, cls):
-	si = np.argsort(-predicted)
-	tp = np.cumsum(np.single(actual[si]==cls))
-	fp = np.cumsum(np.single(actual[si]!=cls))
-	tp = tp/np.sum(actual==cls)
-	fp = fp/np.sum(actual!=cls)
-	tp = np.hstack((0.0, tp, 1.0))
-	fp = np.hstack((0.0, fp, 1.0))
-	return tp, fp
+	return area_under_curve(predicted, actual, labelset)
 
 
 def make_engine():
 	return matlab.engine.start_matlab()
 
 
-def MultiMatch(eng, data1, data2, check=False):
+def _MultiMatch(eng, data1, data2, check=False):
 	try:
 		data1 = matlab.double(data1.tolist())
 		data2 = matlab.double(data2.tolist())
 		if (check) and ('metrics/MultiMatchToolbox' not in eng.pwd()) :
 			eng.cd('metrics/MultiMatchToolbox/')
 		return eng.doComparison(data1,data2)
+	except Exception as e:
+		print(e)
+		return False
 
+
+def MultiMatch(eng, model_output, seqs):
+	try:
+		model_fixations = extract_model_fixations(model_output)
+		seqs = extract_img_sequences(seqs)
+		result = list()
+		for seq in seqs:
+			result.append(_MultiMatch(eng, model_fixations, seq))
+		return np.array(result).squeeze()
 	except Exception as e:
 		print(e)
 		return False
