@@ -61,8 +61,8 @@ class ConvLSTMCell(nn.Module):
 		return (h_next, c_next)
 
 	def init_hidden(self, batch_size):
-		return (Variable(torch.zeros(batch_size, self.hidden_dim, self.height, self.width)).cuda(),
-				Variable(torch.zeros(batch_size, self.hidden_dim, self.height, self.width)).cuda())
+		return (Variable(torch.zeros(batch_size, self.hidden_dim, self.height, self.width)).cuda(0),
+				Variable(torch.zeros(batch_size, self.hidden_dim, self.height, self.width)).cuda(0))
 
 
 class ConvLSTM(nn.Module):
@@ -178,30 +178,24 @@ class Custom_ConvLstm(nn.Module):
 	def __init__(self):
 		super(Custom_ConvLstm, self).__init__()
 
-		self.CLSTM = ConvLSTM((32,32), 1, [32 , 32], [(3,3), (3,3)], 2,
+		self.CLSTM = ConvLSTM((75,100), 512, [64], [(3,3)], 1,
 				 batch_first=True, bias=True, return_all_layers=True)
-		self.conv_out = nn.Sequential( 
-					nn.Conv2d(32, 1, kernel_size=(1,1), stride=1),
-					nn.ReLU(inplace=True),
-					# nn.Conv2d(32, 1, kernel_size=(1,1), stride=1, bias=False),
-					# nn.ReLU(inplace=True),
-			)
-		# self.conv_out = nn.Conv2d(32, 1, kernel_size=(1,1), bias=False)
-		# self.conv_out = nn.Sequential(
-		# 			nn.Conv2d(64, 32, kernel_size=3, padding=1, bias=True),
-		# 			nn.ReLU(inplace=True), 
-		# 			nn.Conv2d(32, 1, kernel_size=3, padding=1, bias=False)
-		# 		)
+		self.conv_out = nn.Conv2d(64, 1, kernel_size=3, padding=1, bias=False)
+		self.sigmoid = nn.Sigmoid()
+
 
 	def forward(self, input, hidden_c=None):
 		_b, _t, _c , _h, _w = input.size()
-		assert (_c, _h, _w) == (1 , 32, 32)
+		assert (_t, _c, _h, _w) == (1 , 512 , 75, 100)
 
 		conv_output = list()
 		output, hidden_c = self.CLSTM(input, hidden_c)
 		output = output[-1]
 		for t in range(output.size(1)):
-			conv_output.append(self.conv_out(output[:,t,...]))
+			conv1_1_out = self.conv_out(output[:,t,...])
+			b , c, h, w = conv1_1_out.size()
+			conv_output.append(self.sigmoid(conv1_1_out.view(b,-1)).view(b,c,h,w))
+			
 		conv_output = torch.stack(conv_output, dim=1)
 		return conv_output, [output, hidden_c]
 

@@ -3,18 +3,24 @@
 
 from __future__ import print_function, division
 import os
-import torch
-import numpy as np
-from scipy.spatial import distance
+import shutil
+import glob
+import pickle
 import random
+
+import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
-import pickle
-from saliency.dataset import SaliencyDataset
+
+import numpy as np
+from scipy.spatial import distance
 from scipy.ndimage.filters import gaussian_filter
 from PIL import Image, ImageFilter
+
+
+from saliency.dataset import SaliencyDataset
 from config import CONFIG
-import glob
+from utils import fov_mask
 
 normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
 								 std=[0.229, 0.224, 0.225])
@@ -98,25 +104,32 @@ class SequnceDataset(Dataset):
 
 		img , sal, user_seq, [img_idx, user_idx] = pair
 
-		result = self.check_exists(img_idx, user_idx)
-		if result:
-			return result
+		# result = self.check_exists(img_idx, user_idx)
+		# if result:
+		# 	return result
 
 		img = Image.open(img)
 		sal = Image.open(sal)
-		sal.save(os.path.join(self.config['dataset_dir'], '{0}_{1}_{2}.jpg'.format(img_idx, user_idx, 'sal')))
+		user_seq = user_seq[:,[1,0]].astype(np.int32)
+
+		# sal.save(os.path.join(self.config['dataset_dir'], '{0}_{1}_{2}.jpg'.format(img_idx, user_idx, 'sal')))
+		# sal_copy_path = os.path.join(self.config['dataset_dir'], '{0}_{1}_{2}.jpg'.format(img_idx, user_idx, 'sal'))
+		# shutil.copy2(sal, sal_copy_path)
 
 
 		if self.config['first_blur_sigma']:
 			foveated_imgs.append(img.filter(ImageFilter.GaussianBlur(self.config['first_blur_sigma'])))
 		else:
 			foveated_imgs.append(img)
-		im_ptrn = os.path.join(self.config['dataset_dir'], '{0}_{1}_{2}.jpg'.format(img_idx, user_idx, len(foveated_imgs) -1 ))
-		foveated_imgs[-1].save(im_ptrn)
 
-		bl = img.filter(ImageFilter.GaussianBlur(self.config['blur_sigma']))
+		# im_ptrn = os.path.join(self.config['dataset_dir'],
+		# 	'{0}_{1}_{2}.jpg'.format(img_idx, user_idx, len(foveated_imgs) -1 ))
+		# foveated_imgs[-1].save(im_ptrn)
 
-		user_seq = user_seq[:,[1,0]].astype(np.int32)
+		bl = np.array(img.filter(ImageFilter.GaussianBlur(self.config['blur_sigma'])))
+		img = np.array(img)
+
+
 		first_fix = [0,0]
 		for sec_fix in user_seq:
 			try:
@@ -125,60 +138,62 @@ class SequnceDataset(Dataset):
 					continue
 				if len(foveated_imgs) > 10:
 					break
-				blurred = np.array(bl)
-				gt = np.zeros(img.size[::-1])
-				gt[sec_fix[0], sec_fix[1]] = 2550
-				gt = gaussian_filter(gt, self.config['gaussian_sigma'])
-				mask = (gt > self.config['mask_th'])
-				blurred[mask] = np.array(img)[mask]
-				gt[mask] = 255.0
+				blurred = bl.copy()
+
+				# gt = np.zeros(img.size[::-1])
+				# gt[sec_fix[0], sec_fix[1]] = 2550
+				# gt = gaussian_filter(gt, self.config['gaussian_sigma'])
+				# mask = (gt > self.config['mask_th'])
+
+				mask, gt = fov_mask(img.shape, radius=self.config['fixation_radius'],
+								 	center=sec_fix, th=self.config['mask_th'])
+
+				blurred[mask] = img[mask]
+				# gt[mask] = 255.0
 
 				foveated_imgs.append(Image.fromarray(blurred))
-				im_ptrn = os.path.join(self.config['dataset_dir'], '{0}_{1}_{2}.jpg'.format(img_idx, user_idx, len(foveated_imgs) -1 ))
-				foveated_imgs[-1].save(im_ptrn)
+				# im_ptrn = os.path.join(self.config['dataset_dir'], '{0}_{1}_{2}.jpg'.format(img_idx, user_idx, len(foveated_imgs) -1 ))
+				# foveated_imgs[-1].save(im_ptrn)
 
-				gt = np.array(Image.fromarray(gt.astype(np.uint8)).resize((100,75)), dtype=np.float32) / 255.0
+				# gt = np.array(Image.fromarray(gt.astype(np.uint8)).resize((100,75)), dtype=np.float32) / 255.0
+				gt = skimage.transform.resize(gt, (75,100))
 				gts.append(gt)
 
 				first_sec = sec_fix
 			except Exception as e:
 				print(e)
 
-		gts = np.array(gts)
-		np.save( os.path.join(self.config['dataset_dir'], '{0}_{1}_{2}.npz'.format(img_idx, user_idx, 'gt')), gts)
+		# gts = np.array(gts)
+		# np.save( os.path.join(self.config['dataset_dir'], '{0}_{1}_{2}.npz'.format(img_idx, user_idx, 'gt')), gts)
 
 
 		return [foveated_imgs, sal, np.array(gts)]
 
-	def check_exists(self, img_idx, user_idx):
-		im_ptrn = os.path.join(self.config['dataset_dir'], '{0}_{1}_{2}.jpg'.format(img_idx, user_idx, '[0-9]*'))
-		sal = os.path.join(self.config['dataset_dir'], '{0}_{1}_{2}.jpg'.format(img_idx, user_idx, 'sal'))
-		gt_ptrn = os.path.join(self.config['dataset_dir'], '{0}_{1}_{2}.npz.npy'.format(img_idx, user_idx, 'gt'))
+	# def check_exists(self, img_idx, user_idx):
+	# 	im_ptrn = os.path.join(self.config['dataset_dir'], '{0}_{1}_{2}.jpg'.format(img_idx, user_idx, '[0-9]*'))
+	# 	sal = os.path.join(self.config['dataset_dir'], '{0}_{1}_{2}.jpg'.format(img_idx, user_idx, 'sal'))
+	# 	gt_ptrn = os.path.join(self.config['dataset_dir'], '{0}_{1}_{2}.npz.npy'.format(img_idx, user_idx, 'gt'))
 
-		imgs = list()
-		gts = list()
+	# 	imgs = list()
+	# 	gts = list()
 
-		try:
-			imgs_path = sorted(glob.glob(im_ptrn), key = lambda x: int(x.split('.jpg')[0].split('_')[-1]))
-			if imgs_path:
-				for img in imgs_path:
-					imgs.append(Image.open(img))
+	# 	try:
+	# 		imgs_path = sorted(glob.glob(im_ptrn), key = lambda x: int(x.split('.jpg')[0].split('_')[-1]))
+	# 		if imgs_path:
+	# 			for img in imgs_path:
+	# 				imgs.append(Image.open(img))
 
-				sal = Image.open(sal)
-				gts = np.load(gt_ptrn)
+	# 			sal = Image.open(sal)
+	# 			gts = np.load(gt_ptrn)
 
-				return [ imgs, sal, gts ]
-			else:
-				return False
+	# 			return [ imgs, sal, gts ]
+	# 		else:
+	# 			return False
 
-		except Exception as e:
-			print(imgs_path)
-			print(e)
-			return False
-
-
-
-
+	# 	except Exception as e:
+	# 		print(imgs_path)
+	# 		print(e)
+	# 		return False
 
 
 	def __getitem__(self, idx):
