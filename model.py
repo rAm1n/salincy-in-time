@@ -4,8 +4,8 @@ from torch import autograd
 from torch.autograd import Variable
 import torch.nn.functional as F
 import torch.nn as nn
-from convlstm import Custom_ConvLstm
-from encoder import make_encoder, en_config
+from layers.convlstm import Custom_ConvLstm
+from layers.encoder import make_encoder, en_config
 import numpy as np
 import cv2
 import time

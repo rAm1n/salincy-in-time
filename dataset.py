@@ -16,7 +16,7 @@ import numpy as np
 from scipy.spatial import distance
 from scipy.ndimage.filters import gaussian_filter
 from PIL import Image, ImageFilter
-
+import skimage.transform
 
 from saliency.dataset import SaliencyDataset
 from config import CONFIG
@@ -66,7 +66,7 @@ class SequnceDataset(Dataset):
 
 
 	def __len__(self):
-		return len(self.dataset)
+		return sum(x is not None for x in self.dataset)
 
 	def __repr__(self):
 		return 'Dataset object - {0}'.format(self.config['name'])
@@ -86,9 +86,10 @@ class SequnceDataset(Dataset):
 
 			for img_idx , img in enumerate(imgs):
 				for user_idx, seq in enumerate(seqs[img_idx][self.config[mode]]):
-					if (seq.shape[0] < 3):
-						continue
-					dataset.append((img, maps[img_idx], seq, [img_idx, self.config[mode][user_idx] ]))
+					if (seq.shape[0] < self.config['min_sequence_length']):
+						dataset.append(None)
+					else:
+						dataset.append((img, maps[img_idx], seq, [img_idx, self.config[mode][user_idx] ]))
 
 			return dataset
 			# return sorted(dataset, key=lambda k: random.random())
@@ -98,6 +99,9 @@ class SequnceDataset(Dataset):
 
 
 	def _prep(self, pair):
+
+		if pair is None:
+			return None
 
 		foveated_imgs = list()
 		gts = list()
@@ -110,7 +114,7 @@ class SequnceDataset(Dataset):
 
 		img = Image.open(img)
 		sal = Image.open(sal)
-		user_seq = user_seq[:,[1,0]].astype(np.int32)
+		user_seq = user_seq[:,[0,1]].astype(np.int32)
 
 		# sal.save(os.path.join(self.config['dataset_dir'], '{0}_{1}_{2}.jpg'.format(img_idx, user_idx, 'sal')))
 		# sal_copy_path = os.path.join(self.config['dataset_dir'], '{0}_{1}_{2}.jpg'.format(img_idx, user_idx, 'sal'))
@@ -133,19 +137,21 @@ class SequnceDataset(Dataset):
 		first_fix = [0,0]
 		for sec_fix in user_seq:
 			try:
-				if distance.euclidean(first_fix, sec_fix) < self.config['distance']:
+				if distance.euclidean(first_fix, sec_fix) < self.config['sequence_distance']:
 					first_sec = sec_fix
 					continue
-				if len(foveated_imgs) > 10:
+				if len(foveated_imgs) > self.config['max_sequence_length']:
 					break
+				if (sec_fix[0] > img.shape[0]) or (sec_fix[1] > img.shape[1]):
+					continue
+
 				blurred = bl.copy()
 
 				# gt = np.zeros(img.size[::-1])
 				# gt[sec_fix[0], sec_fix[1]] = 2550
 				# gt = gaussian_filter(gt, self.config['gaussian_sigma'])
 				# mask = (gt > self.config['mask_th'])
-
-				mask, gt = fov_mask(img.shape, radius=self.config['fixation_radius'],
+				mask, gt = fov_mask(img.shape[:2], radius=self.config['foveation_radius'],
 								 	center=sec_fix, th=self.config['mask_th'])
 
 				blurred[mask] = img[mask]
@@ -161,54 +167,27 @@ class SequnceDataset(Dataset):
 
 				first_sec = sec_fix
 			except Exception as e:
-				print(e)
-
-		# gts = np.array(gts)
-		# np.save( os.path.join(self.config['dataset_dir'], '{0}_{1}_{2}.npz'.format(img_idx, user_idx, 'gt')), gts)
+				pass
 
 
-		return [foveated_imgs, sal, np.array(gts)]
-
-	# def check_exists(self, img_idx, user_idx):
-	# 	im_ptrn = os.path.join(self.config['dataset_dir'], '{0}_{1}_{2}.jpg'.format(img_idx, user_idx, '[0-9]*'))
-	# 	sal = os.path.join(self.config['dataset_dir'], '{0}_{1}_{2}.jpg'.format(img_idx, user_idx, 'sal'))
-	# 	gt_ptrn = os.path.join(self.config['dataset_dir'], '{0}_{1}_{2}.npz.npy'.format(img_idx, user_idx, 'gt'))
-
-	# 	imgs = list()
-	# 	gts = list()
-
-	# 	try:
-	# 		imgs_path = sorted(glob.glob(im_ptrn), key = lambda x: int(x.split('.jpg')[0].split('_')[-1]))
-	# 		if imgs_path:
-	# 			for img in imgs_path:
-	# 				imgs.append(Image.open(img))
-
-	# 			sal = Image.open(sal)
-	# 			gts = np.load(gt_ptrn)
-
-	# 			return [ imgs, sal, gts ]
-	# 		else:
-	# 			return False
-
-	# 	except Exception as e:
-	# 		print(imgs_path)
-	# 		print(e)
-	# 		return False
+		return [foveated_imgs, np.array(gts), sal]
 
 
 	def __getitem__(self, idx):
-		result = list()
-		fov, sal, gts = self._prep(self.dataset[idx])
-		for img in fov:
-			if self.transform:
-				img = self.transform(img)
-			result.append(img)
+		try:
+			result = list()
+			fov, gts, sal = self._prep(self.dataset[idx])
+			for img in fov:
+				if self.transform:
+					img = self.transform(img)
+				result.append(img)
 
-		if self.sal_tf:
-			sal = self.sal_tf(sal)
+			if self.sal_tf:
+				sal = self.sal_tf(sal)
 
-		return [torch.stack(result), sal, torch.from_numpy(gts), self.dataset[idx][0]]
-
+			return [torch.stack(result), torch.from_numpy(gts), sal, self.dataset[idx][0]]
+		except Exception as e:
+			return None
 
 
 

@@ -1,5 +1,5 @@
 
-from metrics import MultiMatch, make_engine
+from saliency.metric import MultiMatch, make_engine
 import numpy as np
 
 from saliency.dataset import SaliencyDataset
