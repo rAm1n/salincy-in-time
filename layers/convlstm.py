@@ -66,9 +66,13 @@ class ConvLSTMCell(nn.Module):
 
 
 class ConvLSTM(nn.Module):
+	"""	
+		if bidirectional is True, the number of layers must be odd.
+		
+	"""
 
 	def __init__(self, input_size, input_dim, hidden_dim, kernel_size, num_layers,
-				 batch_first=False, bias=True, return_all_layers=False):
+				 bidirectional=False, batch_first=False, bias=True, return_all_layers=False):
 		super(ConvLSTM, self).__init__()
 
 		self._check_kernel_size_consistency(kernel_size)
@@ -78,7 +82,9 @@ class ConvLSTM(nn.Module):
 		hidden_dim  = self._extend_for_multilayer(hidden_dim, num_layers)
 		if not len(kernel_size) == len(hidden_dim) == num_layers:
 			raise ValueError('Inconsistent list length.')
-
+		if bidirectional and ((num_layers%2) == 0 ):
+			raise ValueError('only supports odd number of layers for bidirectional ConvLSTM')
+		
 		self.height, self.width = input_size
 
 		self.input_dim  = input_dim
@@ -87,6 +93,7 @@ class ConvLSTM(nn.Module):
 		self.num_layers = num_layers
 		self.batch_first = batch_first
 		self.bias = bias
+		self.bidirectional = bidirectional
 		self.return_all_layers = return_all_layers
 
 		cell_list = []
@@ -134,6 +141,7 @@ class ConvLSTM(nn.Module):
 
 		for layer_idx in range(self.num_layers):
 
+
 			h, c = hidden_state[layer_idx]
 			output_inner = []
 			for t in range(seq_len):
@@ -141,11 +149,15 @@ class ConvLSTM(nn.Module):
 												 cur_state=[h, c])
 				output_inner.append(h)
 
+			if self.bidirectional:
+				output_inner = output_inner[::-1]
+		
 			layer_output = torch.stack(output_inner, dim=1)
 			cur_layer_input = layer_output
 
 			layer_output_list.append(layer_output)
 			last_state_list.append([h, c])
+
 
 		if not self.return_all_layers:
 			layer_output_list = layer_output_list[-1:]
