@@ -69,24 +69,24 @@ class SequnceDataset(Dataset):
 		return sum(x is not None for x in self.dataset)
 
 	def __repr__(self):
-		return 'Dataset object - {0}'.format(self.config['name'])
+		return 'Dataset object - {0}'.format(self.config['dataset']['name'])
 
 	def __str__(self):
-		return 'Dataset object - {0}'.format(self.config['name'])
+		return 'Dataset object - {0}'.format(self.config['dataset']['name'])
 
 
 	def load(self, mode):
 		try:
 			dataset = list()
 
-			d = SaliencyDataset(self.config['name'])
+			d = SaliencyDataset(self.config['dataset']['name'])
 			seqs = d.get('sequence')
 			imgs = d.get('stimuli_path')
 			maps = d.get('heatmap_path')
 
 			for img_idx , img in enumerate(imgs):
-				for user_idx, seq in enumerate(seqs[img_idx][self.config[mode]]):
-					if (seq.shape[0] < self.config['min_sequence_length']):
+				for user_idx, seq in enumerate(seqs[img_idx][self.config[mode]['users']]):
+					if (seq.shape[0] < self.config['dataset']['min_sequence_length']):
 						dataset.append(None)
 					else:
 						dataset.append((img, maps[img_idx], seq, [img_idx, self.config[mode][user_idx] ]))
@@ -121,8 +121,8 @@ class SequnceDataset(Dataset):
 		# shutil.copy2(sal, sal_copy_path)
 
 
-		if self.config['first_blur_sigma']:
-			foveated_imgs.append(img.filter(ImageFilter.GaussianBlur(self.config['first_blur_sigma'])))
+		if self.config['dataset']['first_blur_sigma']:
+			foveated_imgs.append(img.filter(ImageFilter.GaussianBlur(self.config['dataset']['first_blur_sigma'])))
 		else:
 			foveated_imgs.append(img)
 
@@ -130,17 +130,19 @@ class SequnceDataset(Dataset):
 		# 	'{0}_{1}_{2}.jpg'.format(img_idx, user_idx, len(foveated_imgs) -1 ))
 		# foveated_imgs[-1].save(im_ptrn)
 
-		bl = np.array(img.filter(ImageFilter.GaussianBlur(self.config['blur_sigma'])))
+		bl = np.array(img.filter(ImageFilter.GaussianBlur(self.config['dataset']['blur_sigma'])))
 		img = np.array(img)
 
 
 		first_fix = [0,0]
+		fixations = list()
+
 		for sec_fix in user_seq:
 			try:
-				if distance.euclidean(first_fix, sec_fix) < self.config['sequence_distance']:
+				if distance.euclidean(first_fix, sec_fix) < self.config['dataset']['sequence_distance']:
 					first_sec = sec_fix
 					continue
-				if len(foveated_imgs) > self.config['max_sequence_length']:
+				if len(foveated_imgs) > self.config['dataset']['max_sequence_length']:
 					break
 				if (sec_fix[0] > img.shape[0]) or (sec_fix[1] > img.shape[1]):
 					continue
@@ -151,8 +153,8 @@ class SequnceDataset(Dataset):
 				# gt[sec_fix[0], sec_fix[1]] = 2550
 				# gt = gaussian_filter(gt, self.config['gaussian_sigma'])
 				# mask = (gt > self.config['mask_th'])
-				mask, gt = fov_mask(img.shape[:2], radius=self.config['foveation_radius'],
-								 	center=sec_fix, th=self.config['mask_th'])
+				mask, gt = fov_mask(img.shape[:2], radius=self.config['dataset']['foveation_radius'],
+								 	center=sec_fix, th=self.config['dataset']['mask_th'])
 
 				blurred[mask] = img[mask]
 				# gt[mask] = 255.0
@@ -165,18 +167,19 @@ class SequnceDataset(Dataset):
 				gt = skimage.transform.resize(gt, (75,100))
 				gts.append(gt)
 
+				fixations.append(sec_fix)
 				first_sec = sec_fix
 			except Exception as e:
 				pass
 
 
-		return [foveated_imgs, np.array(gts), sal]
+		return [foveated_imgs, np.array(gts), sal, fixations]
 
 
 	def __getitem__(self, idx):
 		try:
 			result = list()
-			fov, gts, sal = self._prep(self.dataset[idx])
+			fov, gts, sal, fixations = self._prep(self.dataset[idx])
 			for img in fov:
 				if self.transform:
 					img = self.transform(img)
@@ -185,7 +188,16 @@ class SequnceDataset(Dataset):
 			if self.sal_tf:
 				sal = self.sal_tf(sal)
 
-			return [torch.stack(result), torch.from_numpy(gts), sal, self.dataset[idx][0]]
+			result =  {
+				'input' : torch.stack(result),
+				'gts'   : torch.from_numpy(gts),
+				'saliency' : sal,
+				'img_path' : self.dataset[idx][0],
+				'fixations': torch.fromnumpy(fixations)
+			}
+
+			return result
+
 		except Exception as e:
 			return None
 

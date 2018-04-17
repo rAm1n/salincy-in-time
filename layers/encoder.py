@@ -7,18 +7,26 @@ import torch
 
 
 
-en_config = {
-	'vgg16':{
+e_config = {
+	'VGG16':{
 			'arch' : ['64', '64', 'M', '128','128', 'M', '256', '256', '256', 'M',
 				'512', '512', '512', 'M', '512' , '512', '512', 'M'],
 			'scale_factor' : 32
 		},
-	'dvgg16' :{
+	'DVGG16' :{
 			'arch' : ['64', '64', 'M', '128','128', 'M', '256', '256', '256', 'M',
 				'512', '512', '512', '512d', '512d', '512d'],
 			'scale_factor' : 8
 		}
 }
+
+
+def make_encoder(config, **kwargs):
+	model = Encoder(make_layers(config['arch']), **kwargs)
+	# if pretrained:
+	# 	model.load_vgg_weights()
+	return model
+
 
 
 
@@ -83,9 +91,3 @@ def make_layers(cfg, batch_norm=False):
 	return nn.Sequential(*layers)
 
 
-# def make_encoder(config, pretraind=False, **kwargs):
-def make_encoder(config, **kwargs):
-	model = Encoder(make_layers(config), **kwargs)
-	# if pretrained:
-	# 	model.load_vgg_weights()
-	return model

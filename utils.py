@@ -58,10 +58,8 @@ def extract_img_sequences(seqs):
 
 
 
-def extract_model_fixations(seq, add_duration=True):
+def extract_model_fixations(seq):
 	output = list()
 	for t in seq:
 		output.append(np.unravel_index(t.argmax(), t.shape))
-	output = np.array(output)
-	extra_column = np.random.uniform(low=200, high=800, size=(output.shape[0],1))
-	return np.hstack((output,extra_column)).astype(np.int32)
+	return np.array(output, dtype=np.int32)

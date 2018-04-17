@@ -5,6 +5,42 @@ from torch.autograd import Variable
 import torch
 
 
+
+
+d_config = {
+	'CLSTM1':{
+			'input_dim' : 512,
+			'hidden_dims' : [64],
+			'kernels' : [(3,3)],
+			'bidirectional': False,
+		},
+	'CLSTM2':{
+			'input_dim' : 512,
+			'hidden_dims' : [64 , 64],
+			'kernels' : [(3,3), (3,3)],
+			'bidirectional': False,
+		},
+	'CLSTM4':{
+			'input_dim' : 512,
+			'hidden_dims' : [64 , 64, 64 , 64],
+			'kernels' : [(3,3), (3,3), (3,3), (3,3)],
+			'bidirectional': False,
+		},
+	'BCLSTM3':{
+			'input_dim' : 512,
+			'hidden_dims' : [64 , 64, 64],
+			'kernels' : [(3,3), (3,3), (3,3)],
+			'bidirectional': True,
+		},
+}
+
+
+
+def make_decoder(config):
+	return Custom_ConvLstm(config)
+
+
+
 class ConvLSTMCell(nn.Module):
 
 	def __init__(self, input_size, input_dim, hidden_dim, kernel_size, bias):
@@ -53,22 +89,20 @@ class ConvLSTMCell(nn.Module):
 		o = torch.sigmoid(cc_o)
 		g = torch.tanh(cc_g)
 
-#		print(i.size(), g.size())
-
 		c_next = f * c_cur + i * g
 		h_next = o * torch.tanh(c_next)
 
 		return (h_next, c_next)
 
 	def init_hidden(self, batch_size):
-		return (Variable(torch.zeros(batch_size, self.hidden_dim, self.height, self.width)).cuda(0),
-				Variable(torch.zeros(batch_size, self.hidden_dim, self.height, self.width)).cuda(0))
+		return (Variable(torch.zeros(batch_size, self.hidden_dim, self.height, self.width)),
+				Variable(torch.zeros(batch_size, self.hidden_dim, self.height, self.width)))
 
 
 class ConvLSTM(nn.Module):
-	"""	
+	"""
 		if bidirectional is True, the number of layers must be odd.
-		
+
 	"""
 
 	def __init__(self, input_size, input_dim, hidden_dim, kernel_size, num_layers,
@@ -84,7 +118,7 @@ class ConvLSTM(nn.Module):
 			raise ValueError('Inconsistent list length.')
 		if bidirectional and ((num_layers%2) == 0 ):
 			raise ValueError('only supports odd number of layers for bidirectional ConvLSTM')
-		
+
 		self.height, self.width = input_size
 
 		self.input_dim  = input_dim
@@ -151,7 +185,7 @@ class ConvLSTM(nn.Module):
 
 			if self.bidirectional:
 				output_inner = output_inner[::-1]
-		
+
 			layer_output = torch.stack(output_inner, dim=1)
 			cur_layer_input = layer_output
 
@@ -187,12 +221,13 @@ class ConvLSTM(nn.Module):
 
 class Custom_ConvLstm(nn.Module):
 
-	def __init__(self):
+	def __init__(self, config):
 		super(Custom_ConvLstm, self).__init__()
 
-		self.CLSTM = ConvLSTM((75,100), 512, [64], [(3,3)], 1,
-				 batch_first=True, bias=True, return_all_layers=True)
-		self.conv_out = nn.Conv2d(64, 1, kernel_size=3, padding=1, bias=False)
+		self.CLSTM = ConvLSTM((75,100), config['input_dim'], config['hidden_dims'],
+				config['kernels'], len(config['hidden_dims']),
+				batch_first=True, bias=True, return_all_layers=True)
+		self.conv_out = nn.Conv2d(config['hidden_dims'][-1], 1, kernel_size=3, padding=1, bias=False)
 		self.sigmoid = nn.Sigmoid()
 
 
@@ -207,7 +242,9 @@ class Custom_ConvLstm(nn.Module):
 			conv1_1_out = self.conv_out(output[:,t,...])
 			b , c, h, w = conv1_1_out.size()
 			conv_output.append(self.sigmoid(conv1_1_out.view(b,-1)).view(b,c,h,w))
-			
+
 		conv_output = torch.stack(conv_output, dim=1)
 		return conv_output, [output, hidden_c]
+
+
 
