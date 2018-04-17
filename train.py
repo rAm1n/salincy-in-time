@@ -13,7 +13,7 @@ import scipy.misc
 from PIL import Image
 import gc
 import skvideo.io
-
+import skimage.transform
 
 import torch
 from torch.autograd import Variable
@@ -22,25 +22,28 @@ import torch.nn.functional as F
 import torchvision.transforms as transforms
 import torch.backends.cudnn as cudnn
 
-from model import SpatioTemporalSaliency
+from model import RNNSaliency
 from dataset import SequnceDataset
 from config import CONFIG
 from utils import extract_model_fixations
+from saliency.metrics import *
 
+import warnings
+warnings.filterwarnings("ignore")
 
-# parser = argparse.ArgumentParser(description='Scanpath prediction')
+parser = argparse.ArgumentParser(description='Scanpath prediction')
 
-# parser.add_argument('--mode', '-m', metavar='MODE', default='train',
-# 					choices=['train', 'eval'],
-# 					help='evaluation metric')
+parser.add_argument('--mode', '-m', metavar='MODE', default='train',
+ 					choices=['train', 'eval'],
+ 					help='evaluation metric')
 # parser.add_argument('--weights', default='/media/ramin/data/scanpath/weights/', metavar='DIR',
 # 					help='path to weights')
 # parser.add_argument('--arch', '-a', metavar='ARCH', default='DVGG16CLSTM1',
 # 					choices=['DVGG16CLSTM1', 'DVGG16CLSTM2', 'DVGG16BCLSTM3'],
 # 					help='enocer architecture: ' +
 # 						' (default: DVGG16CLSTM1)')
-# parser.add_argument('--log', default='logs/', metavar='DIR',
-# 					help='path to dataset')
+parser.add_argument('--log', default='logs/', metavar='DIR',
+ 					help='path to dataset')
 # parser.add_argument('--metric', metavar='METRIC', default='AUC',
 # 					choices=['MultiMatch', 'DTW', 'frechet_distance',
 # 					'euclidean_distance','hausdorff_distance', 'levenshtein_distance'],
@@ -51,20 +54,20 @@ from utils import extract_model_fixations
 # 					help='number of images to visualize')
 # parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
 # 					help='number of data loading workers (default: 4)')
-# parser.add_argument('--epochs', default=5, type=int, metavar='N',
-# 					help='number of total epochs to run')
-# parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
-# 					help='manual epoch number (useful on restarts)')
-# parser.add_argument('-b', '--batch-size', default=256, type=int,
-# 					metavar='N', help='mini-batch size (default: 256)')
+parser.add_argument('--epochs', default=5, type=int, metavar='N',
+ 					help='number of total epochs to run')
+parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
+ 					help='manual epoch number (useful on restarts)')
+parser.add_argument('-b', '--batch-size', default=256, type=int,
+ 					metavar='N', help='mini-batch size (default: 256)')
 # parser.add_argument('--lr', '--learning-rate', default=3e-4, type=float,
 # 					metavar='LR', help='initial learning rate')
 # parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
 # 					help='momentum')
 # parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
 # 					metavar='W', help='weight decay (default: 1e-4)')
-# parser.add_argument('--print-freq', '-p', default=10, type=int,
-# 					metavar='N', help='print frequency (default: 10)')
+parser.add_argument('--print-freq', '-p', default=10, type=int,
+ 					metavar='N', help='print frequency (default: 10)')
 # parser.add_argument('--resume', default='', type=str, metavar='PATH',
 # 					help='path to latest checkpoint (default: none)')
 # parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
@@ -81,8 +84,8 @@ best_prec1 = 0
 
 def main():
 	global args, best_prec1, model, train_dataset, val_dataset
-	args = parser.parse_args()
 
+	args = parser.parse_args()
 
 	logging.basicConfig(
 		format="%(message)s",
@@ -91,19 +94,18 @@ def main():
 			logging.StreamHandler()
 		],
 		level=logging.INFO)
-
-	# Data loading code
+#
+#	# Data loading code
 	config = CONFIG.copy()
-
 
 	mode = args.mode
 
-	for user in CONFIG[mode]:
+	for user in CONFIG[mode]['users']:
 		config[mode]['users'] = [user]
 
-		train_loader = SequnceDataset(config, mode)
+		train_dataset = SequnceDataset(config, mode)
 
-		logging.info("=> creating model'{}'".format(args.arch))
+		#logging.info("=> creating model'{}'".format(args.arch))
 		if config['model']['type'] == 'RNN':
 			model = RNNSaliency(config)
 		else:
@@ -116,8 +118,8 @@ def main():
 
 		criterion = nn.BCELoss().cuda()
 
-		optimizer = torch.optim.Adam(model.decoder.parameters(), args.lr,
-									betas=(0.9, 0.999), eps=1e-08, weight_decay=args.weight_decay)
+		optimizer = torch.optim.Adam(model.decoder.parameters(), config['train']['lr'],
+									betas=(0.9, 0.999), eps=1e-08, weight_decay=config['train']['weight_decay'])
 
 		# if args.resume:
 		# 	if os.path.isfile(args.resume):
@@ -155,7 +157,7 @@ def main():
 			adjust_learning_rate(optimizer, epoch)
 
 			# train for one epoch
-			train(train_loader, model, criterion, optimizer, epoch, config)
+			train(train_dataset, model, criterion, optimizer, epoch, config)
 
 			# visualize(train_loader, model, str(user), str(epoch))
 			# evaluate on validation set
@@ -192,9 +194,14 @@ def train(train_loader, model, criterion, optimizer, epoch, config):
 	model.train()
 
 	end = time.time()
-	for idx, x in enumerate(train_loader):
 
+	for idx, x in enumerate(train_loader):
 		# measure data loading time
+		if x is None:  # skip samples removed with preprocessing policy
+			continue
+
+		t,c,h,w = x['input'].size()
+
 		data_time.update(time.time() - end)
 
 		target = x['gts'].cuda(async=True)
@@ -202,19 +209,21 @@ def train(train_loader, model, criterion, optimizer, epoch, config):
 		target_var = torch.autograd.Variable(target, volatile=True)
 
 		# compute output
-		output = model([input_var, sal, target_var, img_path])
+		output = model([input_var, x['saliency'], target_var, x['img_path']])
 		loss = 0.0
 		for t in range(target_var.size(0)):
-			loss += criterion(output[t], target_var[t])
+			loss += criterion(output[t][0], target_var[t])
 		# loss = criterion(output[:-1], target_var)
 
-		losses.update(loss.data[0], input.size(0))
-
+		losses.update(loss.data[0], x['input'].size(0))
 		# measure accuracy and record loss
-		for idx, metric in enumerate(config['train']['metrics']):
-			output_fixations = extract_model_fixations(output.data.cpu().numpy())
+
+		output = output.data.cpu().numpy().squeeze()
+		output_fixations = extract_model_fixations(output, (h,w))
+
+		for m_idx, metric in enumerate(config['train']['metrics']):
 			acc  = accuracy(output_fixations, x['fixations'], metric)
-			prec[idx].update(acc.mean(axis=0), input.size(0))
+			prec[m_idx].update(acc, x['input'].size(0))
 
 		# compute gradient and do SGD step
 		optimizer.zero_grad()
@@ -226,16 +235,15 @@ def train(train_loader, model, criterion, optimizer, epoch, config):
 		end = time.time()
 
 		if idx % args.print_freq == 0:
-				msg = 'User/Epoch: [{0}][{1}][{2}/{3}]\t'
-				'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-				'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
+				msg = 'User/Epoch: [{0}][{1}][{2}/{3}]\t' \
+				'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t' \
+				'Data {data_time.val:.3f} ({data_time.avg:.3f})\t' \
 				'Loss {loss.val:.4f} ({loss.avg:.4f})\n'.format(
 				config['train']['users'][0], epoch, idx, len(train_loader), batch_time=batch_time,
 				data_time=data_time, loss=losses)
 
-				for idx, metric in enumerate(self.config['train']['metrics']):
-					msg += '{0} {prec.val:.3f} ({prec.avg:.3f})\t'.format(metric, prec=prec[idx])
-
+#				for idx, metric in enumerate(self.config['train']['metrics']):
+#					msg += '{0} {prec.val:.3f} ({prec.avg:.3f})\t'.format(metric, prec=prec[idx])
 				logging.info(msg)
 
 
@@ -312,8 +320,8 @@ class AverageMeter(object):
 		self.count = 0
 
 	def update(self, val, n=1):
-		if not isinstance(val, np.ndarray):
-			val = np.array([val])
+#		if not isinstance(val, np.ndarray):
+#			val = np.array([val])
 
 		self.val = val
 		self.sum += val * n
@@ -323,7 +331,7 @@ class AverageMeter(object):
 
 def adjust_learning_rate(optimizer, epoch):
 	"""Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
-	lr = args.lr * (0.1 ** (epoch // 30))
+	lr = CONFIG['train']['lr'] * (0.1 ** (epoch // 30))
 	for param_group in optimizer.param_groups:
 		param_group['lr'] = lr
 
@@ -334,10 +342,15 @@ def accuracy(output, target, metric):
 	result = list()
 	metric = eval(metric)
 
-	for i in range(batch_size):
-		result.append(metric(output[i], target[i]))
+#	for i in range(batch_size):
+#		try:
+#			result.append(metric(output[i], target[i]))
+#		except Exception as e:
+#			print(e)
+#			print(output[i], target[i])
+	return metric(output, target)
+#	return np.array(result)
 
-	return np.array(result)
 
 # def visualize(loader, model, user, epoch):
 # 	counter = 0

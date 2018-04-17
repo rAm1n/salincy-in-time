@@ -89,7 +89,7 @@ class SequnceDataset(Dataset):
 					if (seq.shape[0] < self.config['dataset']['min_sequence_length']):
 						dataset.append(None)
 					else:
-						dataset.append((img, maps[img_idx], seq, [img_idx, self.config[mode][user_idx] ]))
+						dataset.append((img, maps[img_idx], seq, [img_idx, self.config[mode]['users'][user_idx] ]))
 
 			return dataset
 			# return sorted(dataset, key=lambda k: random.random())
@@ -172,8 +172,8 @@ class SequnceDataset(Dataset):
 			except Exception as e:
 				pass
 
-
-		return [foveated_imgs, np.array(gts), sal, fixations]
+		fixations = np.array(fixations)
+		return [foveated_imgs, np.array(gts, dtype=np.float32), sal, fixations]
 
 
 	def __getitem__(self, idx):
@@ -193,12 +193,13 @@ class SequnceDataset(Dataset):
 				'gts'   : torch.from_numpy(gts),
 				'saliency' : sal,
 				'img_path' : self.dataset[idx][0],
-				'fixations': torch.fromnumpy(fixations)
+				'fixations': fixations
 			}
 
 			return result
 
 		except Exception as e:
+			print(e)
 			return None
 
 

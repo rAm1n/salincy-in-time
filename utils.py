@@ -1,10 +1,10 @@
 
-from saliency.metric import MultiMatch, make_engine
 import numpy as np
 
 from saliency.dataset import SaliencyDataset
 from config import CONFIG
 from  scipy.spatial.distance import euclidean
+import skimage.transform
 
 
 
@@ -58,8 +58,9 @@ def extract_img_sequences(seqs):
 
 
 
-def extract_model_fixations(seq):
+def extract_model_fixations(seq, size):
 	output = list()
 	for t in seq:
+		t = skimage.transform.resize(t, (size[0],size[1]))
 		output.append(np.unravel_index(t.argmax(), t.shape))
 	return np.array(output, dtype=np.int32)
