@@ -65,7 +65,7 @@ class Encoder(nn.Module):
 				m.weight.data.normal_(0, 0.01)
 				m.bias.data.zero_()
 
-	def load_weights(self,w_path='weights/encoder.pth.tar'):
+	def load_weights(self,w_path='weights/encoder-0.pth.tar'):
 		self.load_state_dict(torch.load(w_path)['state_dict'])
 
 

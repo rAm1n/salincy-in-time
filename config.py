@@ -40,6 +40,7 @@ CONFIG = {
 	'saliency_eval' : range(600,700),
 
 
-	'weights' : '/media/ramin/data/scanpath/weights/',
-	'visualization': '/media/ramin/data/scanpath/visualization/',
+	'weights_path' : '/media/ramin/data/scanpath/weights/',
+	'eval_path': '/media/ramin/data/scanpath/eval/',
+	'visualization_path' : '/media/ramin/data/scanpath/visualization/'
 }

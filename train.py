@@ -58,8 +58,8 @@ parser.add_argument('--epochs', default=5, type=int, metavar='N',
  					help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
  					help='manual epoch number (useful on restarts)')
-parser.add_argument('-b', '--batch-size', default=256, type=int,
- 					metavar='N', help='mini-batch size (default: 256)')
+# parser.add_argument('-b', '--batch-size', default=256, type=int,
+#  					metavar='N', help='mini-batch size (default: 256)')
 # parser.add_argument('--lr', '--learning-rate', default=3e-4, type=float,
 # 					metavar='LR', help='initial learning rate')
 # parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
@@ -161,7 +161,8 @@ def main():
 
 			# visualize(train_loader, model, str(user), str(epoch))
 			# evaluate on validation set
-			prec1 = validate(val_loader, model, criterion)
+			validate(train_dataset, model, criterion, user, epoch, config)
+
 
 			# remember best prec@1 and save checkpoint
 			# is_best = prec1 > best_prec1
@@ -247,60 +248,89 @@ def train(train_loader, model, criterion, optimizer, epoch, config):
 				logging.info(msg)
 
 
-# def validate(val_loader, model, criterion, epoch, config):
-# 	batch_time = AverageMeter()
-# 	losses = AverageMeter()
-# 	prec = list()
-
-# 	for metric in config['train']['metrics']:
-# 		prec.append(AverageMeter())
+def validate(val_loader, model, criterion, user, epoch, config):
+	batch_time = AverageMeter()
+	losses = AverageMeter()
+	prec = list()
 
 
-# 	# switch to evaluate mode
-# 	model.eval()
-# 	end = time.time()
+	# saving everything in pickle.
+	outputs = list()
+	fixations = list()
+	precs = list()
 
 
-# 	for idx, x in enumerate(val_loader):
-# 		target = x['gts'].cuda(async=True)
-# 		input_var = torch.autograd.Variable(x['input'], volatile=True).cuda()
-# 		target_var = torch.autograd.Variable(target, volatile=True)
 
-# 		# compute output
-# 		output = model(input_var)
-# 		loss = criterion(output, target_var)
+	for metric in config['eval']['metrics']:
+		prec.append(AverageMeter())
 
-# 		# measure accuracy and record loss
-# 		acc  = accuracy(output.data.cpu().numpy(), target.cpu().numpy())
-
-# 		for idx, metric in enumerate(config['train']['metrics']):
-# 			acc  = accuracy(output.data.cpu().numpy(), target.cpu().numpy())
-# 			prec[idx].update(acc.mean(), input.size(0))
-
-# 		# losses.update(loss.data[0], input.size(0))
-# 		# top1.update(acc.mean(), input.size(0))
+	# switch to evaluate mode
+	model.eval()
+	end = time.time()
 
 
-# 		# measure elapsed time
-# 		batch_time.update(time.time() - end)
-# 		end = time.time()
+	for idx, x in enumerate(val_loader):
 
-# 		if i % args.print_freq == 0:
-# 			logging.info('Test: [{0}/{1}]\t'
-# 				  'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-# 				  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-# 				  'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'.format(
-# 				   i, len(val_loader), batch_time=batch_time, loss=losses,
-# 				   top1=top1))
+		if x is None:  # skip samples removed with preprocessing policy
+			fixations.append(None)
+			outputs.append(None)
+			precs.append({ metric: None for metric in config['eval']['metrics']})
+			continue
 
-# 	logging.info(' * Prec@1 {top1.avg:.3f}'
-# 		  .format(top1=top1))
+		target = x['gts'].cuda(async=True)
+		input_var = torch.autograd.Variable(x['input'], volatile=True).cuda()
+		target_var = torch.autograd.Variable(target, volatile=True)
 
-# 	return top1.avg
+		# compute output
+		output = model(input_var)
+		loss = criterion(output, target_var)
+		losses.update(loss.data[0], x['input'].size(0))
+		# measure accuracy and record loss
+
+		output = output.data.cpu().numpy().squeeze()
+		output_fixations = extract_model_fixations(output, (h,w))
+		outputs.append(output)
+		fixations.append(output_fixations)
 
 
-def save_checkpoint(state, filename='{0}_{1}.pth.tar'):
-	filename = os.path.join(args.weights, filename.format(state['user'], state['epoch']))
+		tmp = dict()
+		for m_idx, metric in enumerate(config['eval']['metrics']):
+			acc  = accuracy(output_fixations, x['fixations'], metric)
+			tmp[metric] = acc.val
+			prec[m_idx].update(acc, x['input'].size(0))
+		precs.append(tmp)
+
+
+		# measure elapsed time
+		batch_time.update(time.time() - end)
+		end = time.time()
+
+		if idx % args.print_freq == 0:
+				msg = 'EVAL - User/Epoch: [{0}][{1}][{2}/{3}]\t' \
+				'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t' \
+				'Data {data_time.val:.3f} ({data_time.avg:.3f})\t' \
+				'Loss {loss.val:.4f} ({loss.avg:.4f})\n'.format(
+				config['train']['users'][0], epoch, idx, len(train_loader), batch_time=batch_time,
+				loss=losses)
+
+				for idx, metric in enumerate(self.config['train']['metrics']):
+					msg += '{0} {:.3f} ({:.3f})\t'.format(metric, str(prec[m_idx].val), str(prec[m_idx].avg))
+				logging.info(msg)
+
+
+	filename = '{0}/{1}-{2}-{3}.pkl'
+	filename.format(config['eval_path'], CONFIG['model']['name'], user, epoch)
+
+	with open(filename,'r') as handle:
+		pickle.dump([config, precs, output, fixations], handle )
+
+	# return top1.avg
+
+
+def save_checkpoint(state, filename='{0}_U{1}_E{2}.pth.tar'):
+	filename = os.path.join(CONFIG['weights_path'],
+		filename.format(CONFIG['model']['name'],state['user'], state['epoch']))
+
 	torch.save(state, filename)
 	# if is_best:
 	# 	logging.warning('***********************saving best model *********************')
@@ -320,8 +350,8 @@ class AverageMeter(object):
 		self.count = 0
 
 	def update(self, val, n=1):
-#		if not isinstance(val, np.ndarray):
-#			val = np.array([val])
+		if not isinstance(val, np.ndarray):
+			val = np.array([val])
 
 		self.val = val
 		self.sum += val * n
@@ -356,9 +386,9 @@ def accuracy(output, target, metric):
 # 	counter = 0
 # 	model.eval()
 
-# 	path = os.path.join(args.visualize, user, epoch)
+# 	path = os.path.join(CONFIG['visualize'], CONFIG['model']['name'], user, epoch)
 # 	if not os.path.exists(path):
-# 	    os.makedirs(path)
+# 		os.makedirs(path)
 
 # 	for idx, (input, sal, target, img_path) in enumerate(loader):
 # 		# measure data loading time
@@ -389,6 +419,22 @@ def accuracy(output, target, metric):
 
 # 			out_path = os.path.join(path, '{0}-{1}.jpg'.format(idx, seq_idx))
 # 			out.save(out_path)
+
+# def visualize_image(img_path, output, config, user, epoch):
+
+# 	path = os.path.join(CONFIG['visualize'], CONFIG['model']['name'], user, epoch)
+# 	if not os.path.exists(path):
+# 		os.makedirs(path)
+
+# 	for mask in output:
+
+# 		if self.config['eval']['next_frame_policy']=='max':
+# 			x_max, y_max = np.unravel_index(mask.argmax(), mask.shape)
+
+# 			mask, _ = fov_mask(img.size[::-1], radius=self.config['dataset']['fixation_radius'],
+# 							center=(x_mask,y_mask), th=self.config['eval']['mask_th'])
+
+
 
 
 if __name__ == '__main__':
