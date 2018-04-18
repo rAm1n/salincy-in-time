@@ -157,11 +157,11 @@ def main():
 			adjust_learning_rate(optimizer, epoch)
 
 			# train for one epoch
-			train(train_dataset, model, criterion, optimizer, epoch, config)
+			#train(train_dataset, model, criterion, optimizer, epoch, config)
 
 			# visualize(train_loader, model, str(user), str(epoch))
 			# evaluate on validation set
-			validate(train_dataset, model, criterion, user, epoch, config)
+			validate(train_dataset, model, user, epoch, config)
 
 
 			# remember best prec@1 and save checkpoint
@@ -248,7 +248,7 @@ def train(train_loader, model, criterion, optimizer, epoch, config):
 				logging.info(msg)
 
 
-def validate(val_loader, model, criterion, user, epoch, config):
+def validate(val_loader, model, user, epoch, config):
 	batch_time = AverageMeter()
 	losses = AverageMeter()
 	prec = list()
@@ -282,9 +282,8 @@ def validate(val_loader, model, criterion, user, epoch, config):
 		target_var = torch.autograd.Variable(target, volatile=True)
 
 		# compute output
-		output = model(input_var)
-		loss = criterion(output, target_var)
-		losses.update(loss.data[0], x['input'].size(0))
+		#output = model(input_var)
+		output = model([input_var, x['saliency'], target_var, x['img_path']]) 
 		# measure accuracy and record loss
 
 		output = output.data.cpu().numpy().squeeze()
@@ -308,8 +307,8 @@ def validate(val_loader, model, criterion, user, epoch, config):
 		if idx % args.print_freq == 0:
 				msg = 'EVAL - User/Epoch: [{0}][{1}][{2}/{3}]\t' \
 				'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t' \
-				'Data {data_time.val:.3f} ({data_time.avg:.3f})\t' \
-				'Loss {loss.val:.4f} ({loss.avg:.4f})\n'.format(
+				'Data {data_time.val:.3f} ({data_time.avg:.3f})\n'.format(
+		#		'Loss {loss.val:.4f} ({loss.avg:.4f})\n'.format(
 				config['train']['users'][0], epoch, idx, len(train_loader), batch_time=batch_time,
 				loss=losses)
 

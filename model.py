@@ -121,7 +121,7 @@ class RNNSaliency(SpatioTemporalSaliency):   # no batch training support b,c,h,w
 				output, [_ , hidden_c] = self.decoder(features, hidden_c)
 				result.append(output[0,0])
 
-				image = _eval_next_frame(img, output)
+				image = self._eval_next_frame(img, output[0,0,0].data.cpu().numpy())
 
 				image = Image.fromarray(image)
 				image = transform(image)
@@ -148,14 +148,14 @@ class RNNSaliency(SpatioTemporalSaliency):   # no batch training support b,c,h,w
 
 
 		blurred = np.array(img.filter(ImageFilter.GaussianBlur(self.config['dataset']['blur_sigma'])))
-		mask = output[0,0,0].data.cpu().numpy()
+#		mask = output[0,0,0].data.cpu().numpy()
 		mask = skimage.transform.resize(mask, img.size[::-1])
 
 		if self.config['eval']['next_frame_policy']=='max':
 			x_max, y_max = np.unravel_index(mask.argmax(), mask.shape)
 
-			mask, _ = fov_mask(img.size[::-1], radius=self.config['dataset']['fixation_radius'],
-							center=(x_mask,y_mask), th=self.config['eval']['mask_th'])
+			mask, _ = fov_mask(img.size[::-1], radius=self.config['dataset']['foveation_radius'],
+							center=(x_max,y_max), th=self.config['eval']['mask_th'])
 		else:
 			mask = (mask > self.config['eval']['mask_th'])
 
