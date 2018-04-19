@@ -81,9 +81,9 @@ class SequnceDataset(Dataset):
 			dataset = list()
 
 			d = SaliencyDataset(self.config['dataset']['name'])
-			seqs = d.get('sequence')[:100]
-			imgs = d.get('stimuli_path')[:100]
-			maps = d.get('heatmap_path')[:100]
+			seqs = d.get('sequence')
+			imgs = d.get('stimuli_path')
+			maps = d.get('heatmap_path')
 
 
 			for img_idx , img in enumerate(imgs):

@@ -95,13 +95,7 @@ def main():
 
 	args = parser.parse_args()
 
-	logging.basicConfig(
-		format="%(message)s",
-		handlers=[
-			logging.FileHandler("{0}/{1}.log".format(args.log, sys.argv[0].replace('.py','') + datetime.now().strftime('_%H_%M_%d_%m_%Y'))),
-			logging.StreamHandler()
-		],
-		level=logging.INFO)
+
 #
 #	# Data loading code
 	config = CONFIG.copy()
@@ -109,6 +103,21 @@ def main():
 	mode = args.mode
 
 	for model_name in MODELS:
+		# setting up the logger.
+		log = logging.getLogger()
+		for hdlr in log.handlers[:]:
+			if isinstance(hdlr,logging.FileHandler):
+				log.removeHandler(hdlr)
+
+		logging.basicConfig(
+				format="%(message)s",
+				handlers=[
+					logging.FileHandler("{0}/{1}-{2}.log".format(
+						args.log, model_name ,sys.argv[0].replace('.py','') + datetime.now().strftime('_%H_%M_%d_%m_%Y'))),
+					logging.StreamHandler()
+				],
+				level=logging.INFO)
+
 		for user in CONFIG[mode]['users']:
 			config[mode]['users'] = [user]
 			config['model']['name'] = model_name
