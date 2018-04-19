@@ -8,12 +8,19 @@ import torch
 
 
 d_config = {
-	'CLSTM1':{
+	'CLSTM1-32':{
+			'input_dim' : 512,
+			'hidden_dims' : [32],
+			'kernels' : [(3,3)],
+			'bidirectional': False,
+		},
+	'CLSTM1-64':{
 			'input_dim' : 512,
 			'hidden_dims' : [64],
 			'kernels' : [(3,3)],
 			'bidirectional': False,
 		},
+
 	'CLSTM2':{
 			'input_dim' : 512,
 			'hidden_dims' : [64 , 64],

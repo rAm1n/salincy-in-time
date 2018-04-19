@@ -25,7 +25,7 @@ import torch.backends.cudnn as cudnn
 
 from model import RNNSaliency
 from dataset import SequnceDataset
-from config import CONFIG
+from config import CONFIG, MODELS
 from utils import extract_model_fixations
 from saliency.metrics import *
 
@@ -108,83 +108,85 @@ def main():
 
 	mode = args.mode
 
-	for user in CONFIG[mode]['users']:
-		config[mode]['users'] = [user]
+	for model_name in MODELS:
+		for user in CONFIG[mode]['users']:
+			config[mode]['users'] = [user]
+			config['model']['name'] = model_name
 
-		train_dataset = SequnceDataset(config, mode)
+			train_dataset = SequnceDataset(config, mode)
 
-		#logging.info("=> creating model'{}'".format(args.arch))
-		if config['model']['type'] == 'RNN':
-			model = RNNSaliency(config)
-		else:
-			pass
+			#logging.info("=> creating model'{}'".format(args.arch))
+			if config['model']['type'] == 'RNN':
+				model = RNNSaliency(config)
+			else:
+				pass
 
-		model._initialize_weights()
+			model._initialize_weights()
 
-		for param in model.encoder.parameters():
-			param.requires_grad = False
+			for param in model.encoder.parameters():
+				param.requires_grad = False
 
-		criterion = nn.BCELoss().cuda()
+			criterion = nn.BCELoss().cuda()
 
-		optimizer = torch.optim.Adam(model.decoder.parameters(), config['train']['lr'],
-									betas=(0.9, 0.999), eps=1e-08, weight_decay=config['train']['weight_decay'])
+			optimizer = torch.optim.Adam(model.decoder.parameters(), config['train']['lr'],
+										betas=(0.9, 0.999), eps=1e-08, weight_decay=config['train']['weight_decay'])
 
-		# if args.resume:
-		# 	if os.path.isfile(args.resume):
-		# 		logging.info("=> loading checkpoint '{}'".format(args.resume))
-		# 		checkpoint = torch.load(args.resume)
-		# 		args.start_epoch = checkpoint['epoch']
-		# 		# best_prec1 = checkpoint['best_prec1']
-		# 		model.load_state_dict(checkpoint['state_dict'])
-		# 		optimizer.load_state_dict(checkpoint['optimizer'])
-		# 		logging.info("=> loaded checkpoint '{}' (epoch {})"
-		# 			  .format(args.resume, checkpoint['epoch']))
-		# 	else:
-		# 		logging.info("=> no checkpoint found at '{}'".format(args.resume))
+			# if args.resume:
+			# 	if os.path.isfile(args.resume):
+			# 		logging.info("=> loading checkpoint '{}'".format(args.resume))
+			# 		checkpoint = torch.load(args.resume)
+			# 		args.start_epoch = checkpoint['epoch']
+			# 		# best_prec1 = checkpoint['best_prec1']
+			# 		model.load_state_dict(checkpoint['state_dict'])
+			# 		optimizer.load_state_dict(checkpoint['optimizer'])
+			# 		logging.info("=> loaded checkpoint '{}' (epoch {})"
+			# 			  .format(args.resume, checkpoint['epoch']))
+			# 	else:
+			# 		logging.info("=> no checkpoint found at '{}'".format(args.resume))
 
-		# train_loader = train_dataset
-		# train_loader = torch.utils.data.DataLoader(
-		# 	train_dataset, batch_size=args.batch_size, shuffle=False,
-		# 	num_workers=args.workers, pin_memory=True, sampler=None)
+			# train_loader = train_dataset
+			# train_loader = torch.utils.data.DataLoader(
+			# 	train_dataset, batch_size=args.batch_size, shuffle=False,
+			# 	num_workers=args.workers, pin_memory=True, sampler=None)
 
-		# val_loader = torch.utils.data.DataLoader(
-		# 	Saliency( CONFIG, 'test'),
-		# 	batch_size=args.batch_size, shuffle=False,
-		# 	num_workers=args.workers, pin_memory=True)
+			# val_loader = torch.utils.data.DataLoader(
+			# 	Saliency( CONFIG, 'test'),
+			# 	batch_size=args.batch_size, shuffle=False,
+			# 	num_workers=args.workers, pin_memory=True)
 
-		# if args.evaluate:
-		# 	validate(val_loader, model, criterion)
-		# 	return
+			# if args.evaluate:
+			# 	validate(val_loader, model, criterion)
+			# 	return
 
-		# if args.visualize:
-		# 	visualize(train_loader, model, user, epoch)
-		# 	return
+			# if args.visualize:
+			# 	visualize(train_loader, model, user, epoch)
+			# 	return
 
-		for epoch in range(args.start_epoch, args.epochs):
+			for epoch in range(args.start_epoch, args.epochs):
 
-			adjust_learning_rate(optimizer, epoch)
+				adjust_learning_rate(optimizer, epoch)
 
-			# train for one epoch
-			train(train_dataset, model, criterion, optimizer, epoch, config)
+				# train for one epoch
+				train(train_dataset, model, criterion, optimizer, epoch, config)
 
-			# visualize(train_loader, model, str(user), str(epoch))
-			# evaluate on validation set
-			validate(train_dataset, model, criterion, user, epoch, config)
+				# visualize(train_loader, model, str(user), str(epoch))
+				# evaluate on validation set
+				validate(train_dataset, model, criterion, user, epoch, config)
 
 
-			# remember best prec@1 and save checkpoint
-			# is_best = prec1 > best_prec1
+				# remember best prec@1 and save checkpoint
+				# is_best = prec1 > best_prec1
 
-			# best_prec1 = max(prec1, best_prec1)
+				# best_prec1 = max(prec1, best_prec1)
 
-			save_checkpoint({
-				'epoch': epoch + 1,
-				'user': user,
-				'arch': config['model']['name'],
-				'state_dict': model.state_dict(),
-				# 'best_prec1': best_prec1,
-				'optimizer' : optimizer.state_dict(),
-			})
+				save_checkpoint({
+					'epoch': epoch + 1,
+					'user': user,
+					'arch': config['model']['name'],
+					'state_dict': model.state_dict(),
+					# 'best_prec1': best_prec1,
+					'optimizer' : optimizer.state_dict(),
+				})
 
 
 def train(train_loader, model, criterion, optimizer, epoch, config):
@@ -248,7 +250,7 @@ def train(train_loader, model, criterion, optimizer, epoch, config):
 				'Time {batch_time_val:.3f} ({batch_time_avg:.3f})\t' \
 				'Loss {loss_val:.4f} ({loss_avg:.4f})\n\n'.format(
 				config['train']['users'][0], epoch, idx, len(train_loader),
-				batch_time_val=batch_time.val[0], batch_time_avg=batch_time.avg[0], 
+				batch_time_val=batch_time.val[0], batch_time_avg=batch_time.avg[0],
 				loss_val=losses.val[0], loss_avg=losses.avg[0])
 
 				# msg = 'User/Epoch: [{0}][{1}][{2}/{3}]\t' \
@@ -281,7 +283,7 @@ def validate(val_loader, model, criterion, user, epoch, config):
 
 	for metric in config['eval']['metrics']:
 		prec.append(AverageMeter())
-			
+
 	# switch to evaluate mode
 	model.eval()
 	end = time.time()
@@ -339,7 +341,7 @@ def validate(val_loader, model, criterion, user, epoch, config):
 				'Time {batch_time_val:.3f} ({batch_time_avg:.3f})\t' \
 				'Loss {loss_val:.4f} ({loss_avg:.4f})\n\n'.format(
 				config['train']['users'][0], epoch, idx, len(val_loader),
-				batch_time_val=batch_time.val[0], batch_time_avg=batch_time.avg[0], 
+				batch_time_val=batch_time.val[0], batch_time_avg=batch_time.avg[0],
 				loss_val=losses.val[0], loss_avg=losses.avg[0])
 
 				for m_idx, metric in enumerate(config['eval']['metrics']):
@@ -359,7 +361,7 @@ def validate(val_loader, model, criterion, user, epoch, config):
 		tmp['fixations'] = np.array(fixations)
 		tmp['voloums'] = np.array(voloums)
 		tmp['eval'] = evaluations
-		
+
 		pickle.dump(tmp, handle)
 
 	# return top1.avg

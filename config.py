@@ -19,7 +19,7 @@ CONFIG = {
 		},
 
 	'train' : {
-		'users': [1],
+		'users': range(5),
 		'lr' : 3e-4,
 		'weight_decay': 1e-4,
 		'momentum': 0.9,
@@ -30,7 +30,7 @@ CONFIG = {
 		},
 
 	'eval' : {
-		'users' : [1],
+		'users' : range(5),
 		'mask_th' : 0.3,
 		'next_frame_policy': 'same', # same
 		'metrics': ['DTW', 'levenshtein_distance', 'frechet_distance', 'hausdorff_distance', 'MultiMatch'],
@@ -45,3 +45,6 @@ CONFIG = {
 	'eval_path': '/media/ramin/data/scanpath/eval/',
 	'visualization_path' : '/media/ramin/data/scanpath/visualization/'
 }
+
+
+MODELS = ['DVGG16_CLSTM1-32', 'DVGG16_CLSTM1-64', 'DVGG16_CLSTM2', 'DVGG16_CLSTM4', 'DVGG16_BCLSTM3']
