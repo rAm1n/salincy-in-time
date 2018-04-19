@@ -11,9 +11,10 @@ import cv2
 import time
 import scipy.misc
 from PIL import Image
-import gc
 import skvideo.io
 import skimage.transform
+import math
+import pickle
 
 import torch
 from torch.autograd import Variable
@@ -81,6 +82,13 @@ fourcc = cv2.VideoWriter_fourcc(*'MJPG')
 cudnn.benchmark = True
 
 best_prec1 = 0
+
+
+if 'MultiMatch' in CONFIG['eval']['metrics']:
+	matlab = make_engine()
+else:
+	matlab = None
+
 
 def main():
 	global args, best_prec1, model, train_dataset, val_dataset
@@ -157,11 +165,11 @@ def main():
 			adjust_learning_rate(optimizer, epoch)
 
 			# train for one epoch
-			#train(train_dataset, model, criterion, optimizer, epoch, config)
+			train(train_dataset, model, criterion, optimizer, epoch, config)
 
 			# visualize(train_loader, model, str(user), str(epoch))
 			# evaluate on validation set
-			validate(train_dataset, model, user, epoch, config)
+			validate(train_dataset, model, criterion, user, epoch, config)
 
 
 			# remember best prec@1 and save checkpoint
@@ -172,7 +180,7 @@ def main():
 			save_checkpoint({
 				'epoch': epoch + 1,
 				'user': user,
-				'arch': args.arch,
+				'arch': config['model']['name'],
 				'state_dict': model.state_dict(),
 				# 'best_prec1': best_prec1,
 				'optimizer' : optimizer.state_dict(),
@@ -236,34 +244,44 @@ def train(train_loader, model, criterion, optimizer, epoch, config):
 		end = time.time()
 
 		if idx % args.print_freq == 0:
-				msg = 'User/Epoch: [{0}][{1}][{2}/{3}]\t' \
-				'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t' \
-				'Data {data_time.val:.3f} ({data_time.avg:.3f})\t' \
-				'Loss {loss.val:.4f} ({loss.avg:.4f})\n'.format(
-				config['train']['users'][0], epoch, idx, len(train_loader), batch_time=batch_time,
-				data_time=data_time, loss=losses)
+				msg = 'TRAINING - User/Epoch: [{0}][{1}][{2}/{3}]\t' \
+				'Time {batch_time_val:.3f} ({batch_time_avg:.3f})\t' \
+				'Loss {loss_val:.4f} ({loss_avg:.4f})\n\n'.format(
+				config['train']['users'][0], epoch, idx, len(train_loader),
+				batch_time_val=batch_time.val[0], batch_time_avg=batch_time.avg[0], 
+				loss_val=losses.val[0], loss_avg=losses.avg[0])
 
-#				for idx, metric in enumerate(self.config['train']['metrics']):
-#					msg += '{0} {prec.val:.3f} ({prec.avg:.3f})\t'.format(metric, prec=prec[idx])
+				# msg = 'User/Epoch: [{0}][{1}][{2}/{3}]\t' \
+				# 'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t' \
+				# 'Data {data_time.val:.3f} ({data_time.avg:.3f})\t' \
+				# 'Loss {loss.val:.4f} ({loss.avg:.4f})\n\n'.format(
+				# config['train']['users'][0], epoch, idx, len(train_loader), batch_time=batch_time,
+				# data_time=data_time, loss=losses)
+
+				for m_idx, metric in enumerate(config['train']['metrics']):
+					val = ' '.join([str(round(num,3)) for num in prec[m_idx].val.flatten()])
+					avg = ' '.join([str(round(num,3)) for num in prec[m_idx].avg.flatten()])
+					msg += '{0}\t{1}\t({2})\n'.format(metric, val, avg)
+
 				logging.info(msg)
 
 
-def validate(val_loader, model, user, epoch, config):
+def validate(val_loader, model, criterion, user, epoch, config):
 	batch_time = AverageMeter()
 	losses = AverageMeter()
 	prec = list()
 
 
 	# saving everything in pickle.
-	outputs = list()
+	voloums = list()
 	fixations = list()
-	precs = list()
+	evaluations = list()
 
 
 
 	for metric in config['eval']['metrics']:
 		prec.append(AverageMeter())
-
+			
 	# switch to evaluate mode
 	model.eval()
 	end = time.time()
@@ -273,9 +291,12 @@ def validate(val_loader, model, user, epoch, config):
 
 		if x is None:  # skip samples removed with preprocessing policy
 			fixations.append(None)
-			outputs.append(None)
-			precs.append({ metric: None for metric in config['eval']['metrics']})
+			voloums.append(None)
+			evaluations.append({ metric: None for metric in config['eval']['metrics']})
 			continue
+
+
+		b,t, h,w = x['input'].size()
 
 		target = x['gts'].cuda(async=True)
 		input_var = torch.autograd.Variable(x['input'], volatile=True).cuda()
@@ -283,58 +304,76 @@ def validate(val_loader, model, user, epoch, config):
 
 		# compute output
 		#output = model(input_var)
-		output = model([input_var, x['saliency'], target_var, x['img_path']]) 
+
+		output = model([input_var, x['saliency'], target_var, x['img_path']])
+
 		# measure accuracy and record loss
+		loss = 0.0
+		for t in range(target_var.size(0)):
+			loss += criterion(output[t][0], target_var[t])
+
+		losses.update(loss.data[0], x['input'].size(0))
+
 
 		output = output.data.cpu().numpy().squeeze()
 		output_fixations = extract_model_fixations(output, (h,w))
-		outputs.append(output)
+		voloums.append(output)
 		fixations.append(output_fixations)
 
 
 		tmp = dict()
 		for m_idx, metric in enumerate(config['eval']['metrics']):
-			acc  = accuracy(output_fixations, x['fixations'], metric)
-			tmp[metric] = acc.val
-			prec[m_idx].update(acc, x['input'].size(0))
-		precs.append(tmp)
+			acc  = accuracy(output_fixations, x['fixations'], metric, height=h, width=w, matlab_engine=matlab)
+			prec[m_idx].update(acc)
+			tmp[metric] = prec[m_idx].val.flatten()
+		evaluations.append(tmp)
 
 
 		# measure elapsed time
 		batch_time.update(time.time() - end)
 		end = time.time()
 
-		if idx % args.print_freq == 0:
-				msg = 'EVAL - User/Epoch: [{0}][{1}][{2}/{3}]\t' \
-				'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t' \
-				'Data {data_time.val:.3f} ({data_time.avg:.3f})\n'.format(
-		#		'Loss {loss.val:.4f} ({loss.avg:.4f})\n'.format(
-				config['train']['users'][0], epoch, idx, len(train_loader), batch_time=batch_time,
-				loss=losses)
 
-				for idx, metric in enumerate(self.config['train']['metrics']):
-					msg += '{0} {:.3f} ({:.3f})\t'.format(metric, str(prec[m_idx].val), str(prec[m_idx].avg))
+		if idx % args.print_freq == 0:
+				msg = 'VAL - User/Epoch: [{0}][{1}][{2}/{3}]\t' \
+				'Time {batch_time_val:.3f} ({batch_time_avg:.3f})\t' \
+				'Loss {loss_val:.4f} ({loss_avg:.4f})\n\n'.format(
+				config['train']['users'][0], epoch, idx, len(val_loader),
+				batch_time_val=batch_time.val[0], batch_time_avg=batch_time.avg[0], 
+				loss_val=losses.val[0], loss_avg=losses.avg[0])
+
+				for m_idx, metric in enumerate(config['eval']['metrics']):
+					val = ' '.join([str(round(num,3)) for num in prec[m_idx].val.flatten()])
+					avg = ' '.join([str(round(num,3)) for num in prec[m_idx].avg.flatten()])
+					msg += '{0}\t{1}\t({2})\n'.format(metric, val, avg)
+
 				logging.info(msg)
 
 
-	filename = '{0}/{1}-{2}-{3}.pkl'
-	filename.format(config['eval_path'], CONFIG['model']['name'], user, epoch)
+	filename = '{}-{}-{}.pkl'
+	filename = os.path.join(config['eval_path'], filename.format(CONFIG['model']['name'], user, epoch))
 
-	with open(filename,'r') as handle:
-		pickle.dump([config, precs, output, fixations], handle )
+	with open(filename,'wb') as handle:
+		tmp = {}
+		tmp['config'] = config
+		tmp['fixations'] = np.array(fixations)
+		tmp['voloums'] = np.array(voloums)
+		tmp['eval'] = evaluations
+		
+		pickle.dump(tmp, handle)
 
 	# return top1.avg
 
 
 def save_checkpoint(state, filename='{0}_U{1}_E{2}.pth.tar'):
-	filename = os.path.join(CONFIG['weights_path'],
-		filename.format(CONFIG['model']['name'],state['user'], state['epoch']))
 
-	torch.save(state, filename)
+	path = os.path.join(CONFIG['weights_path'], filename.format(CONFIG['model']['name'],state['user'], state['epoch']))
 	# if is_best:
 	# 	logging.warning('***********************saving best model *********************')
 	# 	best = os.path.join(args.weights, 'encoder-best.pth.tar')
 	# 	shutil.copyfile(filename, best)
+	torch.save(state, path)
+
 
 
 class AverageMeter(object):
@@ -365,20 +404,12 @@ def adjust_learning_rate(optimizer, epoch):
 		param_group['lr'] = lr
 
 
-def accuracy(output, target, metric):
+def accuracy(output, target, metric, **kwargs):
 	"""Computes the precision@k for the specified values of k"""
-	batch_size = target.shape[0]
-	result = list()
-	metric = eval(metric)
 
-#	for i in range(batch_size):
-#		try:
-#			result.append(metric(output[i], target[i]))
-#		except Exception as e:
-#			print(e)
-#			print(output[i], target[i])
-	return metric(output, target)
-#	return np.array(result)
+	return eval(metric)(P=output, Q=target, **kwargs)
+
+
 
 
 # def visualize(loader, model, user, epoch):

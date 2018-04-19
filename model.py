@@ -82,7 +82,7 @@ class RNNSaliency(SpatioTemporalSaliency):   # no batch training support b,c,h,w
 	def _init_hidden_state(self):
 		return self.decoder._init_hidden()
 
-	def forward(self, input, itr=8):
+	def forward(self, input, itr=12):
 
 		if self.training:
 			images, sal , target, path = input
@@ -152,8 +152,7 @@ class RNNSaliency(SpatioTemporalSaliency):   # no batch training support b,c,h,w
 		mask = skimage.transform.resize(mask, img.size[::-1])
 
 		if self.config['eval']['next_frame_policy']=='max':
-			x_max, y_max = np.unravel_index(mask.argmax(), mask.shape)
-
+			y_max, x_max = np.unravel_index(mask.argmax(), mask.shape)
 			mask, _ = fov_mask(img.size[::-1], radius=self.config['dataset']['foveation_radius'],
 							center=(x_max,y_max), th=self.config['eval']['mask_th'])
 		else:

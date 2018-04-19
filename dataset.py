@@ -66,7 +66,8 @@ class SequnceDataset(Dataset):
 
 
 	def __len__(self):
-		return sum(x is not None for x in self.dataset)
+		return len(self.dataset)
+		# return sum(x is not None for x in self.dataset)
 
 	def __repr__(self):
 		return 'Dataset object - {0}'.format(self.config['dataset']['name'])
@@ -80,9 +81,10 @@ class SequnceDataset(Dataset):
 			dataset = list()
 
 			d = SaliencyDataset(self.config['dataset']['name'])
-			seqs = d.get('sequence')
-			imgs = d.get('stimuli_path')
-			maps = d.get('heatmap_path')
+			seqs = d.get('sequence')[:100]
+			imgs = d.get('stimuli_path')[:100]
+			maps = d.get('heatmap_path')[:100]
+
 
 			for img_idx , img in enumerate(imgs):
 				for user_idx, seq in enumerate(seqs[img_idx][self.config[mode]['users']]):
@@ -113,6 +115,7 @@ class SequnceDataset(Dataset):
 		# 	return result
 
 		img = Image.open(img)
+		w,h = img.size
 		sal = Image.open(sal)
 		user_seq = user_seq[:,[0,1]].astype(np.int32)
 
@@ -144,7 +147,7 @@ class SequnceDataset(Dataset):
 					continue
 				if len(foveated_imgs) > self.config['dataset']['max_sequence_length']:
 					break
-				if (sec_fix[0] > img.shape[0]) or (sec_fix[1] > img.shape[1]):
+				if (sec_fix[0] > w) or (sec_fix[1] > h):
 					continue
 
 				blurred = bl.copy()
@@ -153,7 +156,7 @@ class SequnceDataset(Dataset):
 				# gt[sec_fix[0], sec_fix[1]] = 2550
 				# gt = gaussian_filter(gt, self.config['gaussian_sigma'])
 				# mask = (gt > self.config['mask_th'])
-				mask, gt = fov_mask(img.shape[:2], radius=self.config['dataset']['foveation_radius'],
+				mask, gt = fov_mask((h,w), radius=self.config['dataset']['foveation_radius'],
 								 	center=sec_fix, th=self.config['dataset']['mask_th'])
 
 				blurred[mask] = img[mask]
@@ -198,8 +201,7 @@ class SequnceDataset(Dataset):
 
 			return result
 
-		except Exception as e:
-			print(e)
+		except ValueError:
 			return None
 
 

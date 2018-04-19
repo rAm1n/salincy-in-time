@@ -14,7 +14,7 @@ CONFIG = {
 		},
 
 	'model': {
-			'name' : 'DVGG16_CLSTM4',
+			'name' : 'DVGG16_CLSTM1',
 			'type' : 'RNN',
 		},
 
@@ -24,16 +24,17 @@ CONFIG = {
 		'weight_decay': 1e-4,
 		'momentum': 0.9,
 		'eval_count': 50,
-#		'metrics': ['DTW']#, 'frechet_distance', 'hausdorff_distance'],
+		'metrics': ['DTW', 'frechet_distance', 'hausdorff_distance'],
 #		'metrics': ['frechet_distance'],
-		'metrics': [],
+		# 'metrics': [],
 		},
 
 	'eval' : {
-		'users' : range(4),
+		'users' : [1],
 		'mask_th' : 0.3,
-		'next_frame_policy': 'max', # same
+		'next_frame_policy': 'same', # same
 		'metrics': ['DTW', 'levenshtein_distance', 'frechet_distance', 'hausdorff_distance', 'MultiMatch'],
+		# 'metrics': ['MultiMatch'],
 		},
 
 	'saliency_train' : range(600),
