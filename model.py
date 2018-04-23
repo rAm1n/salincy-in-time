@@ -154,9 +154,19 @@ class RNNSaliency(SpatioTemporalSaliency):   # no batch training support b,c,h,w
 		if self.config['eval']['next_frame_policy']=='max':
 			y_max, x_max = np.unravel_index(mask.argmax(), mask.shape)
 			mask, _ = fov_mask(img.size[::-1], radius=self.config['dataset']['foveation_radius'],
-							center=(x_max,y_max), th=self.config['train']['mask_th'])
-		else:
+							center=(x_max,y_max), th=self.config['eval']['mask_th'])
+		elif self.config['eval']['next_frame_policy'] == 'same':
 			mask = (mask > self.config['eval']['mask_th'])
+
+		elif self.config['eval']['next_frame_policy'] =='same_norm':
+			mask/= mask.max()
+			mask = (mask > self.config['eval']['mask_th'])
+
+		if self.config['eval']['next_frame_policy']=='max_norm':
+			mask/=mask.max()
+			y_max, x_max = np.unravel_index(mask.argmax(), mask.shape)
+			mask, _ = fov_mask(img.size[::-1], radius=self.config['dataset']['foveation_radius'],
+							center=(x_max,y_max), th=self.config['eval']['mask_th'])
 
 		blurred[mask] = np.array(img)[mask]
 
@@ -265,6 +275,3 @@ class CNNSaliency(SpatioTemporalSaliency):   # no batch training support b,c,h,w
 				m.bias.data.zero_()
 		if pretrained:
 			self.encoder.load_weights()
-
-
-

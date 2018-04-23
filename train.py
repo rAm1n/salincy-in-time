@@ -55,7 +55,7 @@ parser.add_argument('--log', default='logs/', metavar='DIR',
 # 					help='number of images to visualize')
 # parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
 # 					help='number of data loading workers (default: 4)')
-parser.add_argument('--epochs', default=5, type=int, metavar='N',
+parser.add_argument('--epochs', default=2, type=int, metavar='N',
  					help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
  					help='manual epoch number (useful on restarts)')
@@ -260,11 +260,11 @@ def train(train_loader, model, criterion, optimizer, epoch, config):
 		end = time.time()
 
 		if idx % args.print_freq == 0:
-				msg = 'TRAINING - User/Epoch: [{0}][{1}][{2}/{3}]\t' \
+				msg = 'TRAINING - User/Epoch: [{0}][{1}][{2}/{3}]\t {4}\t{5}\t' \
 				'Time {batch_time_val:.3f} ({batch_time_avg:.3f})\t' \
 				'Loss {loss_val:.4f} ({loss_avg:.4f})\n\n'.format(
-				config['train']['users'][0], epoch, idx, len(train_loader),
-				batch_time_val=batch_time.val[0], batch_time_avg=batch_time.avg[0],
+				config['train']['users'][0], epoch, idx, len(train_loader), config['model']['name'],
+				config['eval']['next_frame_policy'], batch_time_val=batch_time.val[0], batch_time_avg=batch_time.avg[0],
 				loss_val=losses.val[0], loss_avg=losses.avg[0])
 
 				# msg = 'User/Epoch: [{0}][{1}][{2}/{3}]\t' \

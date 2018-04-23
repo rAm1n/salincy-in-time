@@ -14,6 +14,7 @@ from PIL import Image
 import gc
 import skvideo.io
 import glob
+import pickle
 
 
 import torch
@@ -89,48 +90,60 @@ def main():
 	global args, best_prec1, model, train_dataset, val_dataset
 
 	pkls = glob.glob('/media/ramin/data/scanpath/eval/*/*.pkl')
-	out = '/media/ramin/data/scanpath/visualization/'
+	out_path = '/media/ramin/data/scanpath/visualization-2/'
 
 	d = SaliencyDataset('OSIE')
 	imgs = d.get('stimuli_path')
 
 
 	for pkl in pkls:
-		policy = pkl.split('/')[-2]
-		model_name, depth, user, epoch = pkl.split('/')[-1].split('-')
 
 		data = pickle.load(open(pkl,'rb'))
+		pkl = pkl.replace('.pkl','')
+		policy = pkl.split('/')[-2]
+		model_name, depth, user, epoch = pkl.split('/')[-1].split('-')
 		sequence = d.get('sequence')[:,int(user)]
 
-		path = os.path.join(out, policy, user, epoch)
+		path = os.path.join(out_path, model_name, policy, user, epoch)
+		print(path)
 
 		if not os.path.exists(path):
 			os.makedirs(path)
 
 		for idx, img in enumerate(imgs):
+			print(idx)
+
+			if idx > 50:
+				break
 
 			img = Image.open(img)
 			w, h= img.size
 
 			volume = data['voloums'][idx]
-			if not volume:
+			if volume is not None:
 				pass
 
-			for seq_idx, seq in enumerate(sequence):
-				mask /= volume[seq_idx].max()
-				mask = np.array(mask, dtype=np.uint8)
-				mask = Image.fromarray(mask).resize((w,h)).convert('RGB')
 
-				saliency = fov_mask(size=(h,w), center=(seq))
-				saliency = np.array(saliency, dtype=np.uint8)
-				saliency = Image.fromarray(saliency).resize((w,h)).convert('RGB')
+			for seq_idx, seq in enumerate(sequence[idx]):
+				try:
+					# mask = volume[seq_idx] /  volume[seq_idx].max()
+					mask = volume[seq_idx]
+					mask = np.array(mask * 1000, dtype=np.uint8)
+					mask = Image.fromarray(mask).resize((w,h)).convert('RGB')
 
-				out = Image.new('RGB', (w, h*2))
-				out.paste(Image.blend(img, mask, alpha=0.7).convert('RGB'), (0,0))
-				out.paste(Image.blend(img, saliency, alpha=0.7).convert('RGB'),(0,h))
 
-				out_path = os.path.join(path, '{0}-{1}.jpg'.format(idx, seq_idx))
-				out.save(out_path)
+					_, saliency = fov_mask(size=(h,w), center=(seq[:2]))
+					saliency = np.array(saliency * 255, dtype=np.uint8)
+					saliency = Image.fromarray(saliency).resize((w,h)).convert('RGB')
+
+					out = Image.new('RGB', (w, h*2))
+					out.paste(Image.blend(img, mask, alpha=0.7).convert('RGB'), (0,0))
+					out.paste(Image.blend(img, saliency, alpha=0.7).convert('RGB'),(0,h))
+
+					image_out_path = os.path.join(path, '{0}-{1}.jpg'.format(idx, seq_idx))
+					out.save(image_out_path)
+				except Exception as e:
+					pass
 
 
 

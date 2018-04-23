@@ -209,7 +209,7 @@ class SequnceDataset(Dataset):
 
 			return result
 
-		except ValueError:
+		except (ValueError, TypeError):
 			return None
 
 
