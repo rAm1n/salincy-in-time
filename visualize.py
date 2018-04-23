@@ -14,6 +14,7 @@ from PIL import Image
 import gc
 import skvideo.io
 import glob
+import pickle
 
 
 import torch
@@ -26,6 +27,8 @@ import torch.backends.cudnn as cudnn
 from model import SpatioTemporalSaliency
 from dataset import SequnceDataset
 from config import CONFIG
+from saliency.dataset import SaliencyDataset
+from utils import fov_mask
 
 
 parser = argparse.ArgumentParser(description='Scanpath prediction')
@@ -81,98 +84,68 @@ fourcc = cv2.VideoWriter_fourcc(*'MJPG')
 best_prec1 = 0
 
 
+
+
 def main():
 	global args, best_prec1, model, train_dataset, val_dataset
-	args = parser.parse_args()
+
+	pkls = glob.glob('/media/ramin/data/scanpath/eval/*/*.pkl')
+	out_path = '/media/ramin/data/scanpath/visualization-2/'
+
+	d = SaliencyDataset('OSIE')
+	imgs = d.get('stimuli_path')
 
 
-	logging.basicConfig(
-		format="%(message)s",
-		handlers=[
-			logging.FileHandler("{0}/{1}.log".format(args.log, sys.argv[0].replace('.py','') + datetime.now().strftime('_%H_%M_%d_%m_%Y'))),
-			logging.StreamHandler()
-		],
-		level=logging.INFO)
+	for pkl in pkls:
 
-	# create model
-	# if args.pretrained:
-	# 	pass
-	# 	# logging.info("=> using pre-trained model '{}'".format(args.arch))
-	# 	# model = models.__dict__[args.arch](pretrained=True)
-	# else:
-	# logging.info("=> creating model '{}'".format(args.arch))
+		data = pickle.load(open(pkl,'rb'))
+		pkl = pkl.replace('.pkl','')
+		policy = pkl.split('/')[-2]
+		model_name, depth, user, epoch = pkl.split('/')[-1].split('-')
+		sequence = d.get('sequence')[:,int(user)]
 
-	model = SpatioTemporalSaliency(CONFIG)
-	model._initialize_weights()
-	model.eval()
+		path = os.path.join(out_path, model_name, policy, user, epoch)
+		print(path)
 
+		if not os.path.exists(path):
+			os.makedirs(path)
 
-	# define loss function (criterion) and optimizer
-	criterion = nn.BCELoss().cuda()
+		for idx, img in enumerate(imgs):
+			print(idx)
 
-	for param in model.parameters():
-		param.requires_grad = False
+			if idx > 50:
+				break
 
-	# optionally resume from a checkpoint
-	cudnn.benchmark = True
+			img = Image.open(img)
+			w, h= img.size
 
-	# Data loading code
-	config = CONFIG.copy()
+			volume = data['voloums'][idx]
+			if volume is not None:
+				pass
 
 
-	for epoch in range(args.epochs):
-		print('starting forward pass for epoch {0}'.format(epoch))
-		for user in CONFIG['test']:
-			print('starting user {0}'.format(user+1))
-			config['test'] = [user]
-			test_dataset = SequnceDataset(config, 'test')
-
-			# Let's resume weights.
-			w_path = os.path.join(args.weights, '{0}_{1}.pth.tar'.format(user, epoch+1))
-			if os.path.isfile(w_path):
-				logging.info("=> loading checkpoint '{}'".format(w_path))
-				checkpoint = torch.load(w_path)
-				args.start_epoch = checkpoint['epoch']
-				model.load_state_dict(checkpoint['state_dict'])
-				logging.info("=> loaded checkpoint '{}' (epoch {})"
-					  .format(w_path, checkpoint['epoch']))
-			else:
-				logging.info("=> no checkpoint found at '{}'".format(w_path))
-			print('starting forward pass for epoch {0}'.format(epoch))
-
-			start = time.time()
-			for img_idx, (input, sal, target, img_path) in enumerate(test_dataset):
-				# measure data loading time
-				input_var = torch.autograd.Variable(input, volatile=True).cuda(0)
-				output = model([input_var, sal, target, img_path]).cpu().data.numpy()
-				# masks[epoch-1][user][img_idx] = output[0,0]
-
-				img = Image.open(img_path)
-				w, h = img.size
-
-				len_out = output.shape[0]
-
-				counter = 0
-				path = os.path.join(args.visualize, str(user), str(epoch))
-				if not os.path.exists(path):
-					os.makedirs(path)
-
-				for seq_idx, tar in enumerate(target):
-					if seq_idx >= len_out:
-						break
-					mask = np.array(output[seq_idx][0] * 255, dtype=np.uint8)
+			for seq_idx, seq in enumerate(sequence[idx]):
+				try:
+					# mask = volume[seq_idx] /  volume[seq_idx].max()
+					mask = volume[seq_idx]
+					mask = np.array(mask * 1000, dtype=np.uint8)
 					mask = Image.fromarray(mask).resize((w,h)).convert('RGB')
-					saliency = np.array(tar * 255, dtype=np.uint8)
+
+
+					_, saliency = fov_mask(size=(h,w), center=(seq[:2]))
+					saliency = np.array(saliency * 255, dtype=np.uint8)
 					saliency = Image.fromarray(saliency).resize((w,h)).convert('RGB')
 
 					out = Image.new('RGB', (w, h*2))
 					out.paste(Image.blend(img, mask, alpha=0.7).convert('RGB'), (0,0))
 					out.paste(Image.blend(img, saliency, alpha=0.7).convert('RGB'),(0,h))
 
-					out_path = os.path.join(path, '{0}-{1}.jpg'.format(img_idx, seq_idx))
-					out.save(out_path)
+					image_out_path = os.path.join(path, '{0}-{1}.jpg'.format(idx, seq_idx))
+					out.save(image_out_path)
+				except Exception as e:
+					pass
 
-			print(time.time()-start)
+
 
 
 if __name__ == '__main__':
