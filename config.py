@@ -24,6 +24,7 @@ CONFIG = {
 		'weight_decay': 1e-4,
 		'momentum': 0.9,
 		'eval_count': 50,
+		'landa' : 0.5,
 		'metrics': ['DTW', 'frechet_distance', 'hausdorff_distance'],
 #		'metrics': ['frechet_distance'],
 		# 'metrics': [],

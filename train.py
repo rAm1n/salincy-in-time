@@ -225,14 +225,19 @@ def train(train_loader, model, criterion, optimizer, epoch, config):
 		data_time.update(time.time() - end)
 
 		target = x['gts'].cuda(async=True)
+		history = x['history'].cuda(async=True)
+
 		input_var = torch.autograd.Variable(x['input'], volatile=True).cuda()
 		target_var = torch.autograd.Variable(target, volatile=True)
+		history_var = torch.autograd.Variable(history, volatile=True)
 
 		# compute output
+		landa = self.config['train']['landa']
 		output = model([input_var, x['saliency'], target_var, x['img_path']])
 		loss = 0.0
 		for t in range(target_var.size(0)):
-			loss += criterion(output[t][0], target_var[t])
+			loss += ( criterion(output[t][0], target_var[t]) +\
+				 landa * (history * output[t][0]).sum() )
 		# loss = criterion(output[:-1], target_var)
 
 		losses.update(loss.data[0], x['input'].size(0))

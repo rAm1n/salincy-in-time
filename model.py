@@ -154,7 +154,7 @@ class RNNSaliency(SpatioTemporalSaliency):   # no batch training support b,c,h,w
 		if self.config['eval']['next_frame_policy']=='max':
 			y_max, x_max = np.unravel_index(mask.argmax(), mask.shape)
 			mask, _ = fov_mask(img.size[::-1], radius=self.config['dataset']['foveation_radius'],
-							center=(x_max,y_max), th=self.config['eval']['mask_th'])
+							center=(x_max,y_max), th=self.config['train']['mask_th'])
 		else:
 			mask = (mask > self.config['eval']['mask_th'])
 
@@ -178,4 +178,93 @@ class RNNSaliency(SpatioTemporalSaliency):   # no batch training support b,c,h,w
 				m.bias.data.zero_()
 		if pretrained:
 			self.encoder.load_weights()
+
+
+class CNNSaliency(SpatioTemporalSaliency):   # no batch training support b,c,h,w ---> assert b == 1
+
+	def __init__(self, config):
+		super(CNNSaliency, self).__init__()
+
+		self.config = config
+		self.build()
+
+	def build(self):
+		if self.config['model']['type'] != 'CNN':
+			raise ValueError('Model type is not valid.')
+
+		encoder, decoder = self.config['model']['name'].upper().split('_')
+
+		self.encoder = make_encoder(e_config[encoder])
+		self.decoder = make_decoder(d_config[decoder])
+
+	def _init_hidden_state(self):
+		return self.decoder._init_hidden()
+
+	def forward(self, input, itr=12):
+
+		if self.training:
+			images, sal , target, path = input
+			t , c, h, w = images.size()
+			assert (h, w) == (600, 800)
+
+
+			result = list()
+			hidden_c = None
+			features = self.encoder.features(images).data
+			for idx in range(t):
+				# features = self.encoder.features(images[[idx]])
+				feat = Variable(features[[idx]].unsqueeze(1)).cuda()
+				# feat_copy = Variable(feat.unsqueeze(1)).cuda()
+				output, [_ , hidden_c] = self.decoder(feat, hidden_c)
+				result.append(output[0,0])
+
+			return torch.stack(result)
+
+
+		else: # eval mode --- supports batch?
+			images, sal, target, img = input
+			t, c, h, w = images.size()
+			assert (h, w) == (600, 800)
+
+			img = Image.open(img)
+
+
+			result = list()
+			hidden_c = None
+			image = images[[0]]
+
+			for idx in range(itr):
+				features = self.encoder.features(image).data
+				features = Variable(features.unsqueeze(1), volatile=False).cuda()
+				output, [_ , hidden_c] = self.decoder(features, hidden_c)
+				result.append(output[0,0])
+
+				image = self._eval_next_frame(img, output[0,0,0].data.cpu().numpy())
+
+				image = Image.fromarray(image)
+				image = transform(image)
+				image = Variable(image.unsqueeze(0)).cuda(0)
+
+			return torch.stack(result)
+
+
+
+	def _initialize_weights(self,pretrained=True):
+		for m in self.modules():
+			if isinstance(m, nn.Conv2d):
+				n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+				m.weight.data.normal_(0, np.sqrt(4. / n))
+				if m.bias is not None:
+					m.bias.data.zero_()
+			elif isinstance(m, nn.BatchNorm2d):
+				m.weight.data.fill_(1)
+				m.bias.data.zero_()
+			elif isinstance(m, nn.Linear):
+				#m.weight.data.normal_(0, 1)
+				torch.nn.init.xavier_uniform(m.weight.data)
+				m.bias.data.zero_()
+		if pretrained:
+			self.encoder.load_weights()
+
+
 

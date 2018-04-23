@@ -139,8 +139,9 @@ class SequnceDataset(Dataset):
 
 		first_fix = [0,0]
 		fixations = list()
+		history = [np.zeros((w,h))]
 
-		for sec_fix in user_seq:
+		for t , sec_fix in enumerate(user_seq):
 			try:
 				if distance.euclidean(first_fix, sec_fix) < self.config['dataset']['sequence_distance']:
 					first_sec = sec_fix
@@ -159,6 +160,7 @@ class SequnceDataset(Dataset):
 				mask, gt = fov_mask((h,w), radius=self.config['dataset']['foveation_radius'],
 								 	center=sec_fix, th=self.config['dataset']['mask_th'])
 
+
 				blurred[mask] = img[mask]
 				# gt[mask] = 255.0
 
@@ -170,19 +172,24 @@ class SequnceDataset(Dataset):
 				gt = skimage.transform.resize(gt, (75,100))
 				gts.append(gt)
 
+				if t > 1:
+					cur_history = history[-1] + gts[-1]
+					cur_history[cur_history > 1] = 1
+					history.append(cur_history)
+
 				fixations.append(sec_fix)
 				first_sec = sec_fix
 			except Exception as e:
 				pass
 
 		fixations = np.array(fixations)
-		return [foveated_imgs, np.array(gts, dtype=np.float32), sal, fixations]
+		return [foveated_imgs, np.array(gts, dtype=np.float32), sal, fixations, np.array(history)]
 
 
 	def __getitem__(self, idx):
 		try:
 			result = list()
-			fov, gts, sal, fixations = self._prep(self.dataset[idx])
+			fov, gts, sal, fixations, history = self._prep(self.dataset[idx])
 			for img in fov:
 				if self.transform:
 					img = self.transform(img)
@@ -196,7 +203,8 @@ class SequnceDataset(Dataset):
 				'gts'   : torch.from_numpy(gts),
 				'saliency' : sal,
 				'img_path' : self.dataset[idx][0],
-				'fixations': fixations
+				'fixations': fixations,
+				'history' : torch.from_numpy(history)
 			}
 
 			return result
