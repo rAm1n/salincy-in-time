@@ -76,8 +76,8 @@ class RNNSaliency(SpatioTemporalSaliency):   # no batch training support b,c,h,w
 
 		encoder, decoder = self.config['model']['name'].upper().split('_')
 
-		self.encoder = make_encoder(e_config[encoder])
-		self.decoder = make_decoder(d_config[decoder])
+		self.encoder = make_encoder(e_config[encoder]).cuda(1)
+		self.decoder = make_decoder(d_config[decoder]).cuda(0)
 
 	def _init_hidden_state(self):
 		return self.decoder._init_hidden()
@@ -92,10 +92,11 @@ class RNNSaliency(SpatioTemporalSaliency):   # no batch training support b,c,h,w
 
 			result = list()
 			hidden_c = None
-			features = self.encoder.features(images).data
+			features = self.encoder.features(images)#.data
 			for idx in range(t):
 				# features = self.encoder.features(images[[idx]])
-				feat = Variable(features[[idx]].unsqueeze(1)).cuda()
+				# feat = Variable(features[[idx]].unsqueeze(1)).cuda(1)
+				feat = features[[idx]].unsqueeze(1).cuda(0)
 				# feat_copy = Variable(feat.unsqueeze(1)).cuda()
 				output, [_ , hidden_c] = self.decoder(feat, hidden_c)
 				result.append(output[0,0])
@@ -117,7 +118,7 @@ class RNNSaliency(SpatioTemporalSaliency):   # no batch training support b,c,h,w
 
 			for idx in range(itr):
 				features = self.encoder.features(image).data
-				features = Variable(features.unsqueeze(1), volatile=False).cuda()
+				features = Variable(features.unsqueeze(1), volatile=False).cuda(0)
 				output, [_ , hidden_c] = self.decoder(features, hidden_c)
 				result.append(output[0,0])
 
@@ -125,7 +126,7 @@ class RNNSaliency(SpatioTemporalSaliency):   # no batch training support b,c,h,w
 
 				image = Image.fromarray(image)
 				image = transform(image)
-				image = Variable(image.unsqueeze(0)).cuda(0)
+				image = Variable(image.unsqueeze(0)).cuda(1)
 
 			return torch.stack(result)
 

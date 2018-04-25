@@ -89,14 +89,15 @@ best_prec1 = 0
 def main():
 	global args, best_prec1, model, train_dataset, val_dataset
 
-	pkls = glob.glob('/media/ramin/data/scanpath/eval/*/*.pkl')
-	out_path = '/media/ramin/data/scanpath/visualization-2/'
+	pkls = glob.glob('/media/ramin/data/scanpath/eval/same_norm/*.pkl')
+	out_path = '/media/ramin/data/scanpath/visualization-3/'
 
 	d = SaliencyDataset('OSIE')
 	imgs = d.get('stimuli_path')
 
 
 	for pkl in pkls:
+		print(pkl)
 
 		data = pickle.load(open(pkl,'rb'))
 		pkl = pkl.replace('.pkl','')
@@ -126,9 +127,9 @@ def main():
 
 			for seq_idx, seq in enumerate(sequence[idx]):
 				try:
-					# mask = volume[seq_idx] /  volume[seq_idx].max()
-					mask = volume[seq_idx]
-					mask = np.array(mask * 1000, dtype=np.uint8)
+					mask = volume[seq_idx] /  volume[seq_idx].max()
+					#mask = volume[seq_idx]
+					mask = np.array(mask * 255, dtype=np.uint8)
 					mask = Image.fromarray(mask).resize((w,h)).convert('RGB')
 
 

@@ -13,12 +13,39 @@ d_config = {
 			'hidden_dims' : [32],
 			'kernels' : [(3,3)],
 			'bidirectional': False,
+			'cell' : 'ConvLSTMCell',
 		},
+
+	'ATTNCLSTM1-32':{
+			'input_dim' : 512,
+			'hidden_dims' : [32],
+			'kernels' : [(3,3)],
+			'bidirectional': False,
+			'cell' : 'AttnConvLSTMCell'
+		},
+
 	'CLSTM1-64':{
 			'input_dim' : 512,
 			'hidden_dims' : [64],
 			'kernels' : [(3,3)],
 			'bidirectional': False,
+			'cell' : 'ConvLSTMCell',
+		},
+
+	'ATTNCLSTM1-64':{
+			'input_dim' : 512,
+			'hidden_dims' : [64],
+			'kernels' : [(3,3)],
+			'bidirectional': False,
+			'cell' : 'AttnConvLSTMCell'
+		},
+
+	'ATTNCLSTM1-256':{
+			'input_dim' : 512,
+			'hidden_dims' : [256],
+			'kernels' : [(3,3)],
+			'bidirectional': False,
+			'cell' : 'AttnConvLSTMCell'
 		},
 
 	'CLSTM2':{
@@ -26,18 +53,21 @@ d_config = {
 			'hidden_dims' : [64 , 64],
 			'kernels' : [(3,3), (3,3)],
 			'bidirectional': False,
+			'cell' : 'ConvLSTMCell',
 		},
 	'CLSTM4':{
 			'input_dim' : 512,
 			'hidden_dims' : [64 , 64, 64 , 64],
 			'kernels' : [(3,3), (3,3), (3,3), (3,3)],
 			'bidirectional': False,
+			'cell' : 'ConvLSTMCell',
 		},
 	'BCLSTM3':{
 			'input_dim' : 512,
 			'hidden_dims' : [64 , 64, 64],
 			'kernels' : [(3,3), (3,3), (3,3)],
 			'bidirectional': True,
+			'cell' : 'ConvLSTMCell',
 		},
 }
 
@@ -45,6 +75,19 @@ d_config = {
 
 def make_decoder(config):
 	return Custom_ConvLstm(config)
+
+
+
+
+
+class ChannelSoftmax(nn.Module):
+	def __init__(self):
+		super(ChannelSoftmax, self).__init__()
+		self.softmax = nn.Softmax()
+	def forward(self, input_):
+		b,c,h,w = input_.size()
+		output_ = torch.stack([self.softmax(input_[:,i].contiguous().view(b,-1)) for i in range(c)], 0)
+		return output_.view(b,c,h,w)
 
 
 
@@ -102,8 +145,75 @@ class ConvLSTMCell(nn.Module):
 		return (h_next, c_next)
 
 	def init_hidden(self, batch_size):
-		return (Variable(torch.zeros(batch_size, self.hidden_dim, self.height, self.width)),
-				Variable(torch.zeros(batch_size, self.hidden_dim, self.height, self.width)))
+		return (Variable(torch.zeros(batch_size, self.hidden_dim, self.height, self.width)).cuda(0),
+				Variable(torch.zeros(batch_size, self.hidden_dim, self.height, self.width)).cuda(0))
+
+
+
+
+class AttnConvLSTMCell(ConvLSTMCell):
+
+	def __init__(self, input_size, input_dim, hidden_dim, kernel_size, bias):
+		"""
+		Initialize ConvLSTM cell.
+
+		Parameters
+		----------
+		input_size: (int, int)
+			Height and width of input tensor as (height, width).
+		input_dim: int
+			Number of channels of input tensor.
+		hidden_dim: int
+			Number of channels of hidden state.
+		kernel_size: (int, int)
+			Size of the convolutional kernel.
+		bias: bool
+			Whether or not to add the bias.
+		"""
+
+		super(ConvLSTMCell, self).__init__()
+
+
+		self.attn_conv = nn.Conv2d(in_channels=self.input_dim + self.hidden_dim,
+							  out_channels=self.hidden_dim,
+							  kernel_size=self.kernel_size,
+							  padding=self.padding,
+							  bias=self.bias)
+
+		self.v_conv = nn.Conv2d(in_channels=self.hidden_dim,
+							  out_channels=self.input_dim,
+							  kernel_size=self.kernel_size,
+							  padding=self.padding,
+							  bias=self.bias)
+
+		self.softmax = nn.Softmax2d()
+
+
+	def forward(self, input_tensor, cur_state):
+
+		# attention
+		h_cur, c_cur = cur_state
+
+		combined = torch.cat([input_tensor, h_cur], dim=1)  # concatenate along channel axis
+		ZT = self.v_conv(torch.tanh(self.attn_conv(combined)))
+		At = self.softmax(ZT)
+		input_ = At * input_tensor
+
+
+		# Regular ConvLSTM
+		conv_input = torch.cat([input_, h_cur], dim=1) 
+		combined_conv = self.conv(conv_input)
+		cc_i, cc_f, cc_o, cc_g = torch.split(combined_conv, self.hidden_dim, dim=1)
+		i = torch.sigmoid(cc_i)
+		f = torch.sigmoid(cc_f)
+		o = torch.sigmoid(cc_o)
+		g = torch.tanh(cc_g)
+
+		c_next = f * c_cur + i * g
+		h_next = o * torch.tanh(c_next)
+
+		return (h_next, c_next)
+
 
 
 class ConvLSTM(nn.Module):
@@ -113,7 +223,7 @@ class ConvLSTM(nn.Module):
 	"""
 
 	def __init__(self, input_size, input_dim, hidden_dim, kernel_size, num_layers,
-				 bidirectional=False, batch_first=False, bias=True, return_all_layers=False):
+				 bidirectional=False, batch_first=False, bias=True, return_all_layers=False, cell=ConvLSTMCell):
 		super(ConvLSTM, self).__init__()
 
 		self._check_kernel_size_consistency(kernel_size)
@@ -226,14 +336,18 @@ class ConvLSTM(nn.Module):
 
 
 
+
+
+
 class Custom_ConvLstm(nn.Module):
 
 	def __init__(self, config):
 		super(Custom_ConvLstm, self).__init__()
 
 		self.CLSTM = ConvLSTM((75,100), config['input_dim'], config['hidden_dims'],
-				config['kernels'], len(config['hidden_dims']),
-				batch_first=True, bias=True, return_all_layers=True)
+				config['kernels'], len(config['hidden_dims']), batch_first=True, 
+				bias=True, return_all_layers=True,  cell=eval(config['cell']))
+
 		self.conv_out = nn.Conv2d(config['hidden_dims'][-1], 1, kernel_size=3, padding=1, bias=False)
 		self.sigmoid = nn.Sigmoid()
 

@@ -139,7 +139,7 @@ class SequnceDataset(Dataset):
 
 		first_fix = [0,0]
 		fixations = list()
-		history = [np.zeros((w,h))]
+		history = [np.zeros((75,100))]
 
 		for t , sec_fix in enumerate(user_seq):
 			try:
@@ -172,9 +172,9 @@ class SequnceDataset(Dataset):
 				gt = skimage.transform.resize(gt, (75,100))
 				gts.append(gt)
 
-				if t > 1:
+				if t > 0:
 					cur_history = history[-1] + gts[-1]
-					cur_history[cur_history > 1] = 1
+					cur_history[cur_history > 1.0] = 1.0
 					history.append(cur_history)
 
 				fixations.append(sec_fix)
@@ -204,7 +204,7 @@ class SequnceDataset(Dataset):
 				'saliency' : sal,
 				'img_path' : self.dataset[idx][0],
 				'fixations': fixations,
-				'history' : torch.from_numpy(history)
+				'history' : torch.from_numpy(history).float()
 			}
 
 			return result

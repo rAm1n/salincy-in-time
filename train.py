@@ -55,7 +55,7 @@ parser.add_argument('--log', default='logs/', metavar='DIR',
 # 					help='number of images to visualize')
 # parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
 # 					help='number of data loading workers (default: 4)')
-parser.add_argument('--epochs', default=2, type=int, metavar='N',
+parser.add_argument('--epochs', default=10, type=int, metavar='N',
  					help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
  					help='manual epoch number (useful on restarts)')
@@ -130,15 +130,18 @@ def main():
 			else:
 				pass
 
-			model._initialize_weights()
+			model._initialize_weights(pretrained=False)
 
-			for param in model.encoder.parameters():
-				param.requires_grad = False
+			# for param in model.encoder.parameters():
+			# 	param.requires_grad = False
 
 			criterion = nn.BCELoss().cuda()
 
-			optimizer = torch.optim.Adam(model.decoder.parameters(), config['train']['lr'],
-										betas=(0.9, 0.999), eps=1e-08, weight_decay=config['train']['weight_decay'])
+			# optimizer = torch.optim.Adam(model.decoder.parameters(), config['train']['lr'],
+			# 							betas=(0.9, 0.999), eps=1e-08, weight_decay=config['train']['weight_decay'])
+
+			optimizer = torch.optim.Adam(model.parameters(), config['train']['lr'],
+											betas=(0.9, 0.999), eps=1e-08, weight_decay=config['train']['weight_decay'])
 
 			# if args.resume:
 			# 	if os.path.isfile(args.resume):
@@ -180,6 +183,7 @@ def main():
 
 				# visualize(train_loader, model, str(user), str(epoch))
 				# evaluate on validation set
+				#if epoch > 3:
 				validate(train_dataset, model, criterion, user, epoch, config)
 
 
@@ -227,17 +231,19 @@ def train(train_loader, model, criterion, optimizer, epoch, config):
 		target = x['gts'].cuda(async=True)
 		history = x['history'].cuda(async=True)
 
-		input_var = torch.autograd.Variable(x['input'], volatile=True).cuda()
-		target_var = torch.autograd.Variable(target, volatile=True)
-		history_var = torch.autograd.Variable(history, volatile=True)
+
+		input_var = torch.autograd.Variable(x['input'], volatile=False).cuda(1)
+		target_var = torch.autograd.Variable(target, volatile=True).cuda(0)
+		history_var = torch.autograd.Variable(history).cuda(0)
 
 		# compute output
-		landa = self.config['train']['landa']
+		landa = config['train']['landa']
 		output = model([input_var, x['saliency'], target_var, x['img_path']])
 		loss = 0.0
 		for t in range(target_var.size(0)):
-			loss += ( criterion(output[t][0], target_var[t]) +\
-				 landa * (history * output[t][0]).sum() )
+			loss += (criterion(output[t][0], target_var[t]) +\
+					landa * (history_var[t] * output[t][0]).sum())
+
 		# loss = criterion(output[:-1], target_var)
 
 		losses.update(loss.data[0], x['input'].size(0))
@@ -247,7 +253,7 @@ def train(train_loader, model, criterion, optimizer, epoch, config):
 		output_fixations = extract_model_fixations(output, (h,w))
 
 		for m_idx, metric in enumerate(config['train']['metrics']):
-			acc  = accuracy(output_fixations, x['fixations'], metric)
+			acc  = accuracy(output_fixations, x['fixations'], metric, height=h, width=w)
 			prec[m_idx].update(acc, x['input'].size(0))
 
 		# compute gradient and do SGD step
@@ -311,12 +317,15 @@ def validate(val_loader, model, criterion, user, epoch, config):
 			evaluations.append({ metric: None for metric in config['eval']['metrics']})
 			continue
 
+		if idx > 50:
+			break
+
 
 		b,t, h,w = x['input'].size()
 
 		target = x['gts'].cuda(async=True)
-		input_var = torch.autograd.Variable(x['input'], volatile=True).cuda()
-		target_var = torch.autograd.Variable(target, volatile=True)
+		input_var = torch.autograd.Variable(x['input'], volatile=False).cuda(1)
+		target_var = torch.autograd.Variable(target, volatile=False).cuda(0)
 
 		# compute output
 		#output = model(input_var)
