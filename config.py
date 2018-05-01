@@ -3,28 +3,28 @@
 CONFIG = {
 	'dataset' : {
 			'name': 'OSIE',
-			'blur_sigma' : 3,
+			'blur_sigma' : 2,
 			'first_blur_sigma': 0,
 
 			'min_sequence_length': 3,
 			'max_sequence_length': 7,
-			'foveation_radius': 40,
-			'sequence_distance': 40 * 2,
+			'foveation_radius': 120,
+			'sequence_distance': 120,
 			'mask_th' : 0.01,
 		},
 
 	'model': {
-			'name' : 'DVGG16_AttnCLSTM1-64',
+			'name' : 'DVGG16_AttnBCLSTM3-64',
 			'type' : 'RNN',
 		},
 
 	'train' : {
 		'users': [5],
-		'lr' : 3e-6,
+		'lr' : 3e-4,
 		'weight_decay': 1e-4,
 		'momentum': 0.9,
 		'eval_count': 50,
-		'landa' : 0.5,
+		'landa' : 0.2,
 		'metrics': ['DTW', 'levenshtein_distance', 'frechet_distance', 'hausdorff_distance'],
 #		'metrics': ['frechet_distance'],
 #		'metrics': [],

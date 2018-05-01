@@ -130,18 +130,18 @@ def main():
 			else:
 				pass
 
-			model._initialize_weights(pretrained=False)
+			model._initialize_weights(pretrained=True)
 
 			# for param in model.encoder.parameters():
 			# 	param.requires_grad = False
 
 			criterion = nn.BCELoss().cuda()
 
-			# optimizer = torch.optim.Adam(model.decoder.parameters(), config['train']['lr'],
-			# 							betas=(0.9, 0.999), eps=1e-08, weight_decay=config['train']['weight_decay'])
-
 			optimizer = torch.optim.Adam(model.parameters(), config['train']['lr'],
 											betas=(0.9, 0.999), eps=1e-08, weight_decay=config['train']['weight_decay'])
+			# 
+			# optimizer_e = torch.optim.Adam(model.encoder.parameters(), config['train']['lr'],
+			# 								betas=(0.9, 0.999), eps=1e-08, weight_decay=config['train']['weight_decay'])
 
 			# if args.resume:
 			# 	if os.path.isfile(args.resume):
@@ -431,8 +431,11 @@ def adjust_learning_rate(optimizer, epoch):
 
 def accuracy(output, target, metric, **kwargs):
 	"""Computes the precision@k for the specified values of k"""
+	result = list()
+	for seq in target:
+		result.append(eval(metric)(P=output, Q=seq[:,[0,1]], **kwargs))
 
-	return eval(metric)(P=output, Q=target, **kwargs)
+	return np.array(result).min()
 
 
 

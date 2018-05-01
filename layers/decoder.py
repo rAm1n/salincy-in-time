@@ -69,6 +69,13 @@ d_config = {
 			'bidirectional': True,
 			'cell' : 'ConvLSTMCell',
 		},
+	'ATTNBCLSTM3-64':{
+			'input_dim' : 512,
+			'hidden_dims' : [64 , 64, 64],
+			'kernels' : [(3,3), (3,3), (3,3)],
+			'bidirectional': True,
+			'cell' : 'AttnConvLSTMCell',
+		},
 }
 
 
@@ -187,6 +194,8 @@ class AttnConvLSTMCell(ConvLSTMCell):
 							  bias=self.bias)
 
 		self.softmax = nn.Softmax2d()
+		# self.activation = torch.tanh
+		self.activation = torch.tanh
 
 
 	def forward(self, input_tensor, cur_state):
@@ -195,7 +204,7 @@ class AttnConvLSTMCell(ConvLSTMCell):
 		h_cur, c_cur = cur_state
 
 		combined = torch.cat([input_tensor, h_cur], dim=1)  # concatenate along channel axis
-		ZT = self.v_conv(torch.tanh(self.attn_conv(combined)))
+		ZT = self.v_conv(self.activation(self.attn_conv(combined)))
 		At = self.softmax(ZT)
 		input_ = At * input_tensor
 

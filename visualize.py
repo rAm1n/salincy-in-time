@@ -96,6 +96,7 @@ def main():
 	imgs = d.get('stimuli_path')
 
 
+
 	for pkl in pkls:
 		print(pkl)
 
@@ -105,7 +106,7 @@ def main():
 		model_name, depth, user, epoch = pkl.split('/')[-1].split('-')
 		sequence = d.get('sequence')[:,int(user)]
 
-		path = os.path.join(out_path, model_name, policy, user, epoch)
+		path = os.path.join(out_path, model_name + '-' + depth, policy, user, epoch)
 		print(path)
 
 		if not os.path.exists(path):
@@ -133,7 +134,7 @@ def main():
 					mask = Image.fromarray(mask).resize((w,h)).convert('RGB')
 
 
-					_, saliency = fov_mask(size=(h,w), center=(seq[:2]))
+					_, saliency = fov_mask(size=(h,w), radius=80, center=(seq[:2]))
 					saliency = np.array(saliency * 255, dtype=np.uint8)
 					saliency = Image.fromarray(saliency).resize((w,h)).convert('RGB')
 

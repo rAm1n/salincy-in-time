@@ -81,9 +81,9 @@ class SequnceDataset(Dataset):
 			dataset = list()
 
 			d = SaliencyDataset(self.config['dataset']['name'])
-			seqs = d.get('sequence')
-			imgs = d.get('stimuli_path')
-			maps = d.get('heatmap_path')
+			seqs = d.get('sequence')[:100]
+			imgs = d.get('stimuli_path')[:100]
+			maps = d.get('heatmap_path')[:100]
 
 
 			for img_idx , img in enumerate(imgs):
@@ -91,7 +91,8 @@ class SequnceDataset(Dataset):
 					if (seq.shape[0] < self.config['dataset']['min_sequence_length']):
 						dataset.append(None)
 					else:
-						dataset.append((img, maps[img_idx], seq, [img_idx, self.config[mode]['users'][user_idx] ]))
+						#dataset.append((img, maps[img_idx], seq, [img_idx, self.config[mode]['users'][user_idx] ]))
+						dataset.append((img, maps[img_idx], seqs[img_idx], [img_idx, self.config[mode]['users'][user_idx] ]))
 
 			return dataset
 			# return sorted(dataset, key=lambda k: random.random())
@@ -108,7 +109,7 @@ class SequnceDataset(Dataset):
 		foveated_imgs = list()
 		gts = list()
 
-		img , sal, user_seq, [img_idx, user_idx] = pair
+		img , sal, seqs, [img_idx, user_idx] = pair
 
 		# result = self.check_exists(img_idx, user_idx)
 		# if result:
@@ -117,7 +118,7 @@ class SequnceDataset(Dataset):
 		img = Image.open(img)
 		w,h = img.size
 		sal = Image.open(sal)
-		user_seq = user_seq[:,[0,1]].astype(np.int32)
+		user_seq = seqs[user_idx][:,[0,1]].astype(np.int32)
 
 		# sal.save(os.path.join(self.config['dataset_dir'], '{0}_{1}_{2}.jpg'.format(img_idx, user_idx, 'sal')))
 		# sal_copy_path = os.path.join(self.config['dataset_dir'], '{0}_{1}_{2}.jpg'.format(img_idx, user_idx, 'sal'))
@@ -183,7 +184,8 @@ class SequnceDataset(Dataset):
 				pass
 
 		fixations = np.array(fixations)
-		return [foveated_imgs, np.array(gts, dtype=np.float32), sal, fixations, np.array(history)]
+		# return [foveated_imgs, np.array(gts, dtype=np.float32), sal, fixations, np.array(history)]
+		return [foveated_imgs, np.array(gts, dtype=np.float32), sal, seqs, np.array(history)]
 
 
 	def __getitem__(self, idx):
