@@ -28,6 +28,7 @@ normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
 transform = transforms.Compose([
 		# transforms.RandomResizedCrop(224),
 #		transforms.RandomHorizontalFlip(),
+		# transforms.Pad((0,4,0,4)),
 		transforms.ToTensor(),
 		normalize,
 	])
@@ -36,12 +37,14 @@ transform = transforms.Compose([
 sal_transform = transforms.Compose([
 		# transforms.RandomResizedCrop(224),
 		#transforms.RandomHorizontalFlip(),
+		# transforms.Pad((0,4,0,4)),
 		transforms.ToTensor(),
 		normalize,
 	])
 
 
 sal_gt_transform = transforms.Compose([
+		# transforms.Resize((76,100)),
 		transforms.Resize((75,100)),
 		transforms.ToTensor(),
 	])
@@ -81,9 +84,9 @@ class SequnceDataset(Dataset):
 			dataset = list()
 
 			d = SaliencyDataset(self.config['dataset']['name'])
-			seqs = d.get('sequence')[:100]
-			imgs = d.get('stimuli_path')[:100]
-			maps = d.get('heatmap_path')[:100]
+			seqs = d.get('sequence')[:600]
+			imgs = d.get('stimuli_path')[:600]
+			maps = d.get('heatmap_path')[:600]
 
 
 			for img_idx , img in enumerate(imgs):
@@ -191,6 +194,7 @@ class SequnceDataset(Dataset):
 	def __getitem__(self, idx):
 		try:
 			result = list()
+			img_idx, user_idx = self.dataset[idx][-1]
 			fov, gts, sal, fixations, history = self._prep(self.dataset[idx])
 			for img in fov:
 				if self.transform:
@@ -206,12 +210,15 @@ class SequnceDataset(Dataset):
 				'saliency' : sal,
 				'img_path' : self.dataset[idx][0],
 				'fixations': fixations,
-				'history' : torch.from_numpy(history).float()
+				'history' : torch.from_numpy(history).float(),
+				'user_idx': user_idx,
+				'img_idx' : img_idx,
 			}
 
 			return result
 
-		except (ValueError, TypeError):
+		except (ValueError, TypeError) as e:
+			print(e)
 			return None
 
 
@@ -247,9 +254,9 @@ class Saliency(Dataset):
 		try:
 			dataset = list()
 
-			d = SaliencyDataset(self.config['name'])
-			maps = d.get('heatmap_path')[ self.config['saliency_' + mode]]
-			imgs = d.get('stimuli_path')[ self.config['saliency_' + mode]]
+			d = SaliencyDataset(self.config['dataset']['name'])
+			maps = d.get('heatmap_path')[ self.config['dataset']['saliency_' + mode]]
+			imgs = d.get('stimuli_path')[ self.config['dataset']['saliency_' + mode]]
 
 			for idx , img in enumerate(imgs):
 				dataset.append((img,maps[idx]))
@@ -262,7 +269,11 @@ class Saliency(Dataset):
 
 	def __getitem__(self, idx):
 		img, sal = self.dataset[idx]
+
+		# bluring input
 		img = Image.open(img)
+		img = img.filter(ImageFilter.GaussianBlur(self.config['dataset']['first_blur_sigma']))
+
 		sal = Image.open(sal)
 
 		if self.transform:

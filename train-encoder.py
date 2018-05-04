@@ -21,12 +21,11 @@ import torchvision.datasets as datasets
 
 
 
-from encoder import config as en_config
-from encoder import make_encoder
+from layers.encoder import e_config, make_encoder
 from dataset import Saliency
 from config import CONFIG
 
-from metrics import *
+from saliency.metrics import *
 
 
 parser = argparse.ArgumentParser(description='saliency - training script')
@@ -42,7 +41,7 @@ parser.add_argument('--log', default='logs/', metavar='DIR',
 parser.add_argument('--metric', '-m', metavar='METRIC', default='AUC',
 					choices=['AUC', 'NSS'],
 					help='evaluation metric')
-parser.add_argument('-v','--visualize', metavar='DIR', 
+parser.add_argument('-v','--visualize', metavar='DIR',
                     help='path to dataset')
 parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
 					help='number of data loading workers (default: 4)')
@@ -50,7 +49,7 @@ parser.add_argument('--epochs', default=50, type=int, metavar='N',
 					help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
 					help='manual epoch number (useful on restarts)')
-parser.add_argument('-b', '--batch-size', default=256, type=int,
+parser.add_argument('-b', '--batch-size', default=4, type=int,
 					metavar='N', help='mini-batch size (default: 256)')
 parser.add_argument('--lr', '--learning-rate', default=3e-4, type=float,
 					metavar='LR', help='initial learning rate')
@@ -91,8 +90,11 @@ def main():
 		# logging.info("=> using pre-trained model '{}'".format(args.arch))
 		# model = models.__dict__[args.arch](pretrained=True)
 	else:
-		logging.info("=> creating model '{}'".format(args.arch))
-		model = make_encoder(config=en_config[args.arch])
+		model_name = CONFIG['model']['name']
+		en_name = model_name.split('_')[0]
+		logging.info("=> creating model '{}'".format(en_name))
+		model = make_encoder(config=e_config[en_name])
+		model._initialize_weights()
 
 
 
@@ -142,7 +144,7 @@ def main():
 	if args.evaluate:
 		validate(val_loader, model, criterion)
 		return
-	
+
 	if args.visualize:
 		visualize(val_loader, model)
 		return
@@ -261,12 +263,13 @@ def validate(val_loader, model, criterion):
 	return top1.avg
 
 
-def save_checkpoint(state, is_best, filename='encoder.pth.tar'):
-	filename = os.path.join(args.weights, filename)
+def save_checkpoint(state, is_best, filename='encoder-{0}.pth.tar'):
+	date = datetime.now().strftime('_%y-%d-%m_%H-%M')
+	filename = os.path.join(args.weights, filename.format(date))
 	torch.save(state, filename)
 	if is_best:
 		logging.warning('***********************saving best model *********************')
-		best = os.path.join(args.weights, 'encoder-best.pth.tar')
+		best = os.path.join(args.weights, 'encoder-best-{0}.pth.tar'.format(date))
 		shutil.copyfile(filename, best)
 
 
@@ -321,7 +324,7 @@ def visualize(loader, model):
 			mask = Image.fromarray(mask).resize((w,h)).convert('RGB')
 			saliency = np.array(target[idx][0] * 255, dtype=np.uint8)
 			saliency = Image.fromarray(saliency).resize((w,h)).convert('RGB')
-			
+
 			out = Image.new('RGB', (w, h*2))
 			out.paste(Image.blend(img, mask, alpha=0.9).convert('RGB'), (0,0))
 			out.paste(Image.blend(img, saliency, alpha=0.9).convert('RGB'),(0,h))

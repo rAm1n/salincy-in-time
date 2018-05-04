@@ -3,48 +3,53 @@
 CONFIG = {
 	'dataset' : {
 			'name': 'OSIE',
-			'blur_sigma' : 2,
-			'first_blur_sigma': 0,
+			'blur_sigma' : 3,
+			'first_blur_sigma': 3,
 
 			'min_sequence_length': 3,
 			'max_sequence_length': 7,
-			'foveation_radius': 120,
-			'sequence_distance': 120,
+			'foveation_radius': 60,
+			'sequence_distance': 60,
 			'mask_th' : 0.01,
+
+			# encoder training
+			'saliency_train' : range(600),
+			'saliency_test' : range(600,700),
 		},
 
 	'model': {
-			'name' : 'DVGG16_AttnBCLSTM3-64',
+			'name' : 'DVGG16_AttnCLSTM1-64',
 			'type' : 'RNN',
 		},
 
 	'train' : {
-		'users': [5],
+		'users': range(7),
 		'lr' : 3e-4,
 		'weight_decay': 1e-4,
 		'momentum': 0.9,
 		'eval_count': 50,
-		'landa' : 0.2,
-		'metrics': ['DTW', 'levenshtein_distance', 'frechet_distance', 'hausdorff_distance'],
-#		'metrics': ['frechet_distance'],
+		'landa' : 1/7500,
+#		'metrics': ['DTW', 'levenshtein_distance', 'frechet_distance',\
+#				 'hausdorff_distance','MultiMatch', 'ScanMatch',\
+#				 'time_delay_embedding_distance'],
+		'metrics': ['DTW', 'levenshtein_distance', 'frechet_distance'],
 #		'metrics': [],
 		},
 
 	'eval' : {
-		'users' : [5],
+		'users' : range(7),
 		'mask_th' : 0.5,
 		'next_frame_policy': 'same_norm', # same
-		'metrics': ['DTW', 'levenshtein_distance', 'frechet_distance', 'hausdorff_distance'],
+		'metrics': ['DTW', 'levenshtein_distance', 'frechet_distance',\
+				 'hausdorff_distance','MultiMatch', 'ScanMatch',\
+				 'time_delay_embedding_distance'],
 		# 'metrics': ['MultiMatch'],
 #		'metrics': [],
 		},
 
-	'saliency_train' : range(600),
-	'saliency_eval' : range(600,700),
 
-
-	'weights_path' : '/media/ramin/data/scanpath/weights/same_norm/',
-	'eval_path': '/media/ramin/data/scanpath/eval/same_norm/',
+	'weights_path' : '/media/ramin/data/scanpath/weights/test/',
+	'eval_path': '/media/ramin/data/scanpath/eval/test/',
 	'visualization_path' : '/media/ramin/data/scanpath/visualization-4/'
 }
 
@@ -53,4 +58,5 @@ CONFIG = {
 #MODELS = ['DVGG16_CLSTM2', 'DVGG16_CLSTM4', 'DVGG16_BCLSTM3']
 
 
-MODELS = ['DVGG16_AttnCLSTM1-64']
+MODELS = ['DVGG16_ATTNCLSTM1-256']
+

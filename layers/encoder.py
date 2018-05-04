@@ -9,13 +9,13 @@ import torch
 
 e_config = {
 	'VGG16':{
-			'arch' : ['64', '64', 'M', '128','128', 'M', '256', '256', '256', 'M',
-				'512', '512', '512', 'M', '512' , '512', '512', 'M'],
+			'arch' : [['64', '64', 'M'], ['128','128', 'M'], ['256', '256', '256', 'M'],
+				['512', '512', '512', 'M'], ['512' , '512', '512', 'M']],
 			'scale_factor' : 32
 		},
 	'DVGG16' :{
-			'arch' : ['64', '64', 'M', '128','128', 'M', '256', '256', '256', 'M',
-				'512', '512', '512', '512d', '512d', '512d'],
+			'arch' : [['64', '64', 'M'], ['128','128', 'M'], ['256', '256', '256', 'M'],
+				['512', '512', '512'], ['512d', '512d', '512d']],
 			'scale_factor' : 8
 		}
 }
@@ -39,17 +39,18 @@ class Encoder(nn.Module):
 		self.classifier = nn.Conv2d(512,1, kernel_size=1)
 		self.sigmoid = nn.Sigmoid()
 
-	def forward(self, x):
-		feat = self.classifier(self.features(x))
-		b, c, w, h = feat.size()
-		return self.sigmoid(feat.view(b,-1)).view(b,c,w,h)
-		###############################
-		# for name, module in self.features._modules.items():
-		# 	x = module(x)
-		# 	output.append(x)
-		# return output
-		###############################
-		# return self.features(x)
+	def forward(self, x, layers=range(5)):
+
+
+		feat = list()
+		for name, module in self.features._modules.items():
+			x = module(x)
+			if int(name) in layers:
+				feat.append(x)
+
+		sal = self.classifier(feat[-1])
+
+		return [feat, self.sigmoid(sal)]
 
 	def _initialize_weights(self):
 		for m in self.modules():
@@ -65,29 +66,32 @@ class Encoder(nn.Module):
 				m.weight.data.normal_(0, 0.01)
 				m.bias.data.zero_()
 
-	def load_weights(self,w_path='weights/encoder-0.pth.tar'):
+	def load_weights(self,w_path='weights/encoder-3_1.pth.tar'):
 		self.load_state_dict(torch.load(w_path)['state_dict'])
 
 
 
 def make_layers(cfg, batch_norm=False):
-	layers = []
+	network = []
 	in_channels = 3
-	for v in cfg:
-		if v == 'M':
-			layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
-		else:
-			if 'd' in v:
-				v = int(''.join(i for i in v if i.isdigit()))
-				conv2d = nn.Conv2d(in_channels, v, kernel_size=3, padding=2, dilation=2)
+	for box in cfg:
+		layers = list()
+		for v in box:
+			if v == 'M':
+				layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
 			else:
-				v = int(''.join(i for i in v if i.isdigit()))
-				conv2d = nn.Conv2d(in_channels, v, kernel_size=3, padding=1)
-			if batch_norm:
-				layers += [conv2d, nn.BatchNorm2d(v), nn.ReLU(inplace=True)]
-			else:
-				layers += [conv2d, nn.ReLU(inplace=True)]
-			in_channels = v
-	return nn.Sequential(*layers)
+				if 'd' in v:
+					v = int(''.join(i for i in v if i.isdigit()))
+					conv2d = nn.Conv2d(in_channels, v, kernel_size=3, padding=2, dilation=2)
+				else:
+					v = int(''.join(i for i in v if i.isdigit()))
+					conv2d = nn.Conv2d(in_channels, v, kernel_size=3, padding=1)
+				if batch_norm:
+					layers += [conv2d, nn.BatchNorm2d(v), nn.ReLU(inplace=True)]
+				else:
+					layers += [conv2d, nn.ReLU(inplace=True)]
+				in_channels = v
+		network.append(nn.Sequential(*layers))
+	return nn.Sequential(*network)
 
 

@@ -69,6 +69,15 @@ d_config = {
 			'bidirectional': True,
 			'cell' : 'ConvLSTMCell',
 		},
+
+	'ATTNCLSTM3-64':{
+			'input_dim' : 512,
+			'hidden_dims' : [64, 64, 64],
+			'kernels' : [(3,3), (3,3), (3,3)],
+			'bidirectional': False,
+			'cell' : 'AttnConvLSTMCell'
+		},
+
 	'ATTNBCLSTM3-64':{
 			'input_dim' : 512,
 			'hidden_dims' : [64 , 64, 64],
@@ -152,8 +161,8 @@ class ConvLSTMCell(nn.Module):
 		return (h_next, c_next)
 
 	def init_hidden(self, batch_size):
-		return (Variable(torch.zeros(batch_size, self.hidden_dim, self.height, self.width)).cuda(0),
-				Variable(torch.zeros(batch_size, self.hidden_dim, self.height, self.width)).cuda(0))
+		return (Variable(torch.zeros(batch_size, self.hidden_dim, self.height, self.width)).cuda(),
+				Variable(torch.zeros(batch_size, self.hidden_dim, self.height, self.width)).cuda())
 
 
 
@@ -210,7 +219,7 @@ class AttnConvLSTMCell(ConvLSTMCell):
 
 
 		# Regular ConvLSTM
-		conv_input = torch.cat([input_, h_cur], dim=1) 
+		conv_input = torch.cat([input_, h_cur], dim=1)
 		combined_conv = self.conv(conv_input)
 		cc_i, cc_f, cc_o, cc_g = torch.split(combined_conv, self.hidden_dim, dim=1)
 		i = torch.sigmoid(cc_i)
@@ -354,7 +363,7 @@ class Custom_ConvLstm(nn.Module):
 		super(Custom_ConvLstm, self).__init__()
 
 		self.CLSTM = ConvLSTM((75,100), config['input_dim'], config['hidden_dims'],
-				config['kernels'], len(config['hidden_dims']), batch_first=True, 
+				config['kernels'], len(config['hidden_dims']), batch_first=True,
 				bias=True, return_all_layers=True,  cell=eval(config['cell']))
 
 		self.conv_out = nn.Conv2d(config['hidden_dims'][-1], 1, kernel_size=3, padding=1, bias=False)
@@ -372,6 +381,8 @@ class Custom_ConvLstm(nn.Module):
 			conv1_1_out = self.conv_out(output[:,t,...])
 			b , c, h, w = conv1_1_out.size()
 			conv_output.append(self.sigmoid(conv1_1_out.view(b,-1)).view(b,c,h,w))
+			# conv_output.append(self.sigmoid(conv1_1_out))
+			# conv_output.append(conv1_1_out)
 
 		conv_output = torch.stack(conv_output, dim=1)
 		return conv_output, [output, hidden_c]

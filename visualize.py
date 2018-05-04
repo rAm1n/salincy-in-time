@@ -33,6 +33,9 @@ from utils import fov_mask
 
 parser = argparse.ArgumentParser(description='Scanpath prediction')
 
+parser.add_argument('--pkl', metavar='DIR',
+					help='path to pkl file')
+
 parser.add_argument('--weights', default='/media/ramin/data/scanpath/weights-final/', metavar='DIR',
 					help='path to dataset')
 parser.add_argument('--arch', '-a', metavar='ARCH', default='dvgg16',
@@ -87,7 +90,9 @@ best_prec1 = 0
 
 
 def main():
-	global args, best_prec1, model, train_dataset, val_dataset
+	global args, best_prec1, model, train_dataset, val_dataset, data
+
+	args = parser.parse_args()
 
 	pkls = glob.glob('/media/ramin/data/scanpath/eval/same_norm/*.pkl')
 	out_path = '/media/ramin/data/scanpath/visualization-3/'
@@ -96,6 +101,8 @@ def main():
 	imgs = d.get('stimuli_path')
 
 
+	if args.pkl:
+		pkls = [args.pkl]
 
 	for pkl in pkls:
 		print(pkl)
@@ -103,10 +110,10 @@ def main():
 		data = pickle.load(open(pkl,'rb'))
 		pkl = pkl.replace('.pkl','')
 		policy = pkl.split('/')[-2]
-		model_name, depth, user, epoch = pkl.split('/')[-1].split('-')
+		model_name, dataset, depth, user, epoch = pkl.split('/')[-1].split('-')
 		sequence = d.get('sequence')[:,int(user)]
 
-		path = os.path.join(out_path, model_name + '-' + depth, policy, user, epoch)
+		path = os.path.join(out_path, dataset, model_name + '-' + depth, policy, user, epoch)
 		print(path)
 
 		if not os.path.exists(path):
@@ -122,17 +129,21 @@ def main():
 			w, h= img.size
 
 			volume = data['voloums'][idx]
+			fixation = data['fixations'][idx]
+
 			if volume is not None:
 				pass
 
 
 			for seq_idx, seq in enumerate(sequence[idx]):
 				try:
-					mask = volume[seq_idx] /  volume[seq_idx].max()
-					#mask = volume[seq_idx]
+					# mask = volume[seq_idx] /  volume[seq_idx].max()
+					# mask = np.array(volume[seq_idx], dtype=np.uint8)
+					if  seq_idx >= len(fixation):
+						break
+					_ , mask = fov_mask(center=fixation[seq_idx].tolist(), radius=80)
 					mask = np.array(mask * 255, dtype=np.uint8)
 					mask = Image.fromarray(mask).resize((w,h)).convert('RGB')
-
 
 					_, saliency = fov_mask(size=(h,w), radius=80, center=(seq[:2]))
 					saliency = np.array(saliency * 255, dtype=np.uint8)
@@ -145,7 +156,7 @@ def main():
 					image_out_path = os.path.join(path, '{0}-{1}.jpg'.format(idx, seq_idx))
 					out.save(image_out_path)
 				except Exception as e:
-					pass
+					print(e)
 
 
 

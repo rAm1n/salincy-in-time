@@ -55,7 +55,7 @@ parser.add_argument('--log', default='logs/', metavar='DIR',
 # 					help='number of images to visualize')
 # parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
 # 					help='number of data loading workers (default: 4)')
-parser.add_argument('--epochs', default=10, type=int, metavar='N',
+parser.add_argument('--epochs', default=3, type=int, metavar='N',
  					help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
  					help='manual epoch number (useful on restarts)')
@@ -131,15 +131,18 @@ def main():
 				pass
 
 			model._initialize_weights(pretrained=True)
+			model = model.cuda()
 
-			# for param in model.encoder.parameters():
-			# 	param.requires_grad = False
+			for param in model.encoder.parameters():
+				param.requires_grad = False
 
 			criterion = nn.BCELoss().cuda()
+			# criterion = nn.MSELoss().cuda()
 
-			optimizer = torch.optim.Adam(model.parameters(), config['train']['lr'],
-											betas=(0.9, 0.999), eps=1e-08, weight_decay=config['train']['weight_decay'])
-			# 
+			optimizer = torch.optim.Adam(model.decoder.parameters(), config['train']['lr'],
+							betas=(0.9, 0.999), eps=1e-08, weight_decay=config['train']['weight_decay'])
+
+			#
 			# optimizer_e = torch.optim.Adam(model.encoder.parameters(), config['train']['lr'],
 			# 								betas=(0.9, 0.999), eps=1e-08, weight_decay=config['train']['weight_decay'])
 
@@ -179,11 +182,12 @@ def main():
 				adjust_learning_rate(optimizer, epoch)
 
 				# train for one epoch
-				train(train_dataset, model, criterion, optimizer, epoch, config)
+				train(train_dataset, model, criterion, optimizer,
+								epoch, config)
 
 				# visualize(train_loader, model, str(user), str(epoch))
 				# evaluate on validation set
-				#if epoch > 3:
+				#if epoch%10 == 0:
 				validate(train_dataset, model, criterion, user, epoch, config)
 
 
@@ -198,7 +202,7 @@ def main():
 					'arch': config['model']['name'],
 					'state_dict': model.state_dict(),
 					# 'best_prec1': best_prec1,
-					'optimizer' : optimizer.state_dict(),
+					# 'optimizer' : optimizer.state_dict(),
 				})
 
 
@@ -208,6 +212,7 @@ def train(train_loader, model, criterion, optimizer, epoch, config):
 	batch_time = AverageMeter()
 	data_time = AverageMeter()
 	losses = AverageMeter()
+	en_losses = AverageMeter()
 	prec = list()
 
 	for metric in config['train']['metrics']:
@@ -230,21 +235,27 @@ def train(train_loader, model, criterion, optimizer, epoch, config):
 
 		target = x['gts'].cuda(async=True)
 		history = x['history'].cuda(async=True)
+		saliency =  x['saliency'].cuda(async=True)
+		saliency = saliency.repeat(x['input'].size(0),1,1,1)
 
 
-		input_var = torch.autograd.Variable(x['input'], volatile=False).cuda(1)
-		target_var = torch.autograd.Variable(target, volatile=True).cuda(0)
-		history_var = torch.autograd.Variable(history).cuda(0)
+		input_var = torch.autograd.Variable(x['input'], volatile=False).cuda()
+		target_var = torch.autograd.Variable(target, volatile=True).cuda()
+		history_var = torch.autograd.Variable(history).cuda()
+		saliency_var = torch.autograd.Variable(saliency).cuda()
 
 		# compute output
 		landa = config['train']['landa']
-		output = model([input_var, x['saliency'], target_var, x['img_path']])
+		en_sal, output = model([input_var, x['saliency'], target_var, x['img_path']])
 		loss = 0.0
 		for t in range(target_var.size(0)):
-			loss += (criterion(output[t][0], target_var[t]) +\
-					landa * (history_var[t] * output[t][0]).sum())
 
-		# loss = criterion(output[:-1], target_var)
+			loss += (criterion(output[t][0], target_var[t])) #+\
+				#	landa * (history_var[t] * output[t][0]).sum()
+
+
+		# loss_en = criterion(en_sal, saliency_var)
+
 
 		losses.update(loss.data[0], x['input'].size(0))
 		# measure accuracy and record loss
@@ -253,13 +264,18 @@ def train(train_loader, model, criterion, optimizer, epoch, config):
 		output_fixations = extract_model_fixations(output, (h,w))
 
 		for m_idx, metric in enumerate(config['train']['metrics']):
-			acc  = accuracy(output_fixations, x['fixations'], metric, height=h, width=w)
+			acc  = accuracy(output_fixations, x['fixations'], metric,
+						height=h, width=w, matlab_engine=matlab)
+			if np.isnan(acc).any():
+				continue
 			prec[m_idx].update(acc, x['input'].size(0))
 
 		# compute gradient and do SGD step
 		optimizer.zero_grad()
 		loss.backward()
+		# loss_en.backward()
 		optimizer.step()
+
 
 		# measure elapsed time
 		batch_time.update(time.time() - end)
@@ -281,10 +297,12 @@ def train(train_loader, model, criterion, optimizer, epoch, config):
 				# data_time=data_time, loss=losses)
 
 				for m_idx, metric in enumerate(config['train']['metrics']):
-					val = ' '.join([str(round(num,3)) for num in prec[m_idx].val.flatten()])
-					avg = ' '.join([str(round(num,3)) for num in prec[m_idx].avg.flatten()])
-					msg += '{0}\t{1}\t({2})\n'.format(metric, val, avg)
-
+					try:
+						val = ' '.join([str(round(num,3)) for num in prec[m_idx].val.flatten()])
+						avg = ' '.join([str(round(num,3)) for num in prec[m_idx].avg.flatten()])
+						msg += '{0}\t{1}\t({2})\n'.format(metric, val, avg)
+					except Exception as e:
+						pass
 				logging.info(msg)
 
 
@@ -317,15 +335,15 @@ def validate(val_loader, model, criterion, user, epoch, config):
 			evaluations.append({ metric: None for metric in config['eval']['metrics']})
 			continue
 
-		if idx > 50:
-			break
+#		if idx > 50:
+#			break
 
 
 		b,t, h,w = x['input'].size()
 
 		target = x['gts'].cuda(async=True)
-		input_var = torch.autograd.Variable(x['input'], volatile=False).cuda(1)
-		target_var = torch.autograd.Variable(target, volatile=False).cuda(0)
+		input_var = torch.autograd.Variable(x['input'], volatile=False).cuda()
+		target_var = torch.autograd.Variable(target, volatile=False).cuda()
 
 		# compute output
 		#output = model(input_var)
@@ -368,15 +386,19 @@ def validate(val_loader, model, criterion, user, epoch, config):
 				loss_val=losses.val[0], loss_avg=losses.avg[0])
 
 				for m_idx, metric in enumerate(config['eval']['metrics']):
-					val = ' '.join([str(round(num,3)) for num in prec[m_idx].val.flatten()])
-					avg = ' '.join([str(round(num,3)) for num in prec[m_idx].avg.flatten()])
-					msg += '{0}\t{1}\t({2})\n'.format(metric, val, avg)
-
+					try:
+						val = ' '.join([str(round(num,3)) for num in prec[m_idx].val.flatten()])
+						avg = ' '.join([str(round(num,3)) for num in prec[m_idx].avg.flatten()])
+						msg += '{0}\t{1}\t({2})\n'.format(metric, val, avg)
+					except Exception as e:
+						pass
 				logging.info(msg)
 
+	logging.info('\n'.join(['*' * 70 for i in range(4)]))
 
-	filename = '{}-{}-{}.pkl'
-	filename = os.path.join(config['eval_path'], filename.format(CONFIG['model']['name'], user, epoch))
+
+	filename = '{}-{}-{}-{}.pkl'.format(CONFIG['model']['name'], CONFIG['dataset']['name'], CONFIG,user, epoch)
+	filename = os.path.join(config['eval_path'], filename)
 
 	with open(filename,'wb') as handle:
 		tmp = {}
@@ -390,9 +412,10 @@ def validate(val_loader, model, criterion, user, epoch, config):
 	# return top1.avg
 
 
-def save_checkpoint(state, filename='{0}_U{1}_E{2}.pth.tar'):
-
-	path = os.path.join(CONFIG['weights_path'], filename.format(CONFIG['model']['name'],state['user'], state['epoch']))
+def save_checkpoint(state, filename='{0}_{1}_U{2}_E{3}.pth.tar'):
+	filename = filename.format(CONFIG['model']['name'], CONFIG['dataset']['name'],
+				state['user'], state['epoch'])
+	path = os.path.join(CONFIG['weights_path'], filename)
 	# if is_best:
 	# 	logging.warning('***********************saving best model *********************')
 	# 	best = os.path.join(args.weights, 'encoder-best.pth.tar')
@@ -431,12 +454,28 @@ def adjust_learning_rate(optimizer, epoch):
 
 def accuracy(output, target, metric, **kwargs):
 	"""Computes the precision@k for the specified values of k"""
-	result = list()
-	for seq in target:
-		result.append(eval(metric)(P=output, Q=seq[:,[0,1]], **kwargs))
+	results = list()
+	try:
+		for seq in target:
+			tmp = eval(metric)(P=output, Q=seq[:,[0,1]], **kwargs)
+			if np.isnan(tmp).any():
+				continue
+			results.append(tmp)
 
-	return np.array(result).min()
+		return np.array(results).mean(axis=0)
 
+
+	#	if metric in ['MultiMatch', 'ScanMatch']:
+	#		return np.array(results).max(axis=0)
+	#	else:
+	#		return np.array(results).min(axis=0)
+
+
+	except Exception as e:
+			print(output)
+			print(e)
+
+	#return np.array(eval(metric)(P=output, Q=target[:,[0,1]], **kwargs))
 
 
 

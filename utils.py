@@ -2,8 +2,8 @@
 import numpy as np
 
 from saliency.dataset import SaliencyDataset
-from config import CONFIG
-from  scipy.spatial.distance import euclidean
+from config import CONFIG as config
+from  scipy.spatial import distance
 import skimage.transform
 
 
@@ -32,6 +32,8 @@ def fov_mask(size=(600,800), radius=30, center=None, th=0.01):
 	circle = np.exp(-4*np.log(2) * ((x-x0)**2 + (y-y0)**2) / radius**2)[:h,:w]
 	mask = (circle > th)
 
+	# circle = circle.astype(np.float64) * 255
+
 	return mask, circle
 
 
@@ -46,7 +48,7 @@ def extract_img_sequences(seqs):
 			first_fix = [0,0]
 			for sec_fix in user_seq:
 				try:
-					if euclidean(first_fix, sec_fix[:2]) < CONFIG['distance']:
+					if distance.euclidean(first_fix, sec_fix[:2]) < CONFIG['distance']:
 						first_sec = sec_fix
 						continue
 					else:
@@ -63,7 +65,19 @@ def extract_img_sequences(seqs):
 
 def extract_model_fixations(seq, size):
 	output = list()
+	fixations = list()
+	first = np.zeros((size[0], size[1]))
 	for t in seq:
 		t = skimage.transform.resize(t, (size[0],size[1]))
-		output.append(np.unravel_index(t.argmax(), t.shape)[::-1])
+		first, t = t, (t-first)
+		pos = np.array(np.unravel_index(t.argmax(), t.shape)[::-1])
+		pos[pos < 5] = 5 # matlab indexing problem
+		pos[pos > 795] = 794 #matlab indexing problem
+		fixations.append(pos)
+		if output:
+			if distance.euclidean(output[-1], pos) < config['dataset']['sequence_distance']:
+				continue
+		output.append(pos)
+	if len(output) < 3:
+			output = fixations[:8]
 	return np.array(output, dtype=np.int32)
