@@ -397,7 +397,7 @@ def validate(val_loader, model, criterion, user, epoch, config):
 	logging.info('\n'.join(['*' * 70 for i in range(4)]))
 
 
-	filename = '{}-{}-{}-{}.pkl'.format(CONFIG['model']['name'], CONFIG['dataset']['name'], CONFIG,user, epoch)
+	filename = '{}-{}-{}-{}.pkl'.format(CONFIG['model']['name'], CONFIG['dataset']['name'],user, epoch)
 	filename = os.path.join(config['eval_path'], filename)
 
 	with open(filename,'wb') as handle:

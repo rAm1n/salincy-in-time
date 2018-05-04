@@ -23,7 +23,7 @@ CONFIG = {
 		},
 
 	'train' : {
-		'users': range(7),
+		'users': range(8,15),
 		'lr' : 3e-4,
 		'weight_decay': 1e-4,
 		'momentum': 0.9,
@@ -37,7 +37,7 @@ CONFIG = {
 		},
 
 	'eval' : {
-		'users' : range(7),
+		'users' : range(8,15),
 		'mask_th' : 0.5,
 		'next_frame_policy': 'same_norm', # same
 		'metrics': ['DTW', 'levenshtein_distance', 'frechet_distance',\
@@ -48,8 +48,8 @@ CONFIG = {
 		},
 
 
-	'weights_path' : '/media/ramin/data/scanpath/weights/test/',
-	'eval_path': '/media/ramin/data/scanpath/eval/test/',
+	'weights_path' : '/media/ramin/data/scanpath/weights/',
+	'eval_path': '/media/ramin/data/scanpath/eval/',
 	'visualization_path' : '/media/ramin/data/scanpath/visualization-4/'
 }
 
