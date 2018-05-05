@@ -18,12 +18,12 @@ CONFIG = {
 		},
 
 	'model': {
-			'name' : 'DVGG16_AttnCLSTM1-64',
+			'name' : 'DRN26_AttnCLSTM1-64',
 			'type' : 'RNN',
 		},
 
 	'train' : {
-		'users': range(8,15),
+		'users': range(3,8),
 		'lr' : 3e-4,
 		'weight_decay': 1e-4,
 		'momentum': 0.9,
@@ -37,7 +37,7 @@ CONFIG = {
 		},
 
 	'eval' : {
-		'users' : range(8,15),
+		'users' : range(3,8),
 		'mask_th' : 0.5,
 		'next_frame_policy': 'same_norm', # same
 		'metrics': ['DTW', 'levenshtein_distance', 'frechet_distance',\

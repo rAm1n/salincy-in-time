@@ -45,11 +45,11 @@ parser.add_argument('-v','--visualize', metavar='DIR',
                     help='path to dataset')
 parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
 					help='number of data loading workers (default: 4)')
-parser.add_argument('--epochs', default=50, type=int, metavar='N',
+parser.add_argument('--epochs', default=10, type=int, metavar='N',
 					help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
 					help='manual epoch number (useful on restarts)')
-parser.add_argument('-b', '--batch-size', default=4, type=int,
+parser.add_argument('-b', '--batch-size', default=2, type=int,
 					metavar='N', help='mini-batch size (default: 256)')
 parser.add_argument('--lr', '--learning-rate', default=3e-4, type=float,
 					metavar='LR', help='initial learning rate')
@@ -72,7 +72,7 @@ best_prec1 = 0
 
 
 def main():
-	global args, best_prec1, model, train_dataset, val_loader
+	global args, best_prec1, model, train_dataset, val_loader, en_name
 	args = parser.parse_args()
 
 
@@ -94,7 +94,7 @@ def main():
 		en_name = model_name.split('_')[0]
 		logging.info("=> creating model '{}'".format(en_name))
 		model = make_encoder(config=e_config[en_name])
-		model._initialize_weights()
+		# model._initialize_weights()
 
 
 
@@ -191,7 +191,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
 		target_var = torch.autograd.Variable(target)
 
 		# compute output
-		output = model(input_var)
+		_ , output = model(input_var, [])
 		loss = criterion(output, target_var)
 
 		# measure accuracy and record loss
@@ -235,7 +235,7 @@ def validate(val_loader, model, criterion):
 		target_var = torch.autograd.Variable(target, volatile=True)
 
 		# compute output
-		output = model(input_var)
+		_ , output = model(input_var, [])
 		loss = criterion(output, target_var)
 
 		# measure accuracy and record loss
@@ -263,13 +263,13 @@ def validate(val_loader, model, criterion):
 	return top1.avg
 
 
-def save_checkpoint(state, is_best, filename='encoder-{0}.pth.tar'):
+def save_checkpoint(state, is_best, filename='encoder-{0}-{1}.pth.tar'):
 	date = datetime.now().strftime('_%y-%d-%m_%H-%M')
-	filename = os.path.join(args.weights, filename.format(date))
+	filename = os.path.join(args.weights, filename.format(en_name, date))
 	torch.save(state, filename)
 	if is_best:
 		logging.warning('***********************saving best model *********************')
-		best = os.path.join(args.weights, 'encoder-best-{0}.pth.tar'.format(date))
+		best = os.path.join(args.weights, 'encoder-best-{0}.pth.tar'.format(en_name))
 		shutil.copyfile(filename, best)
 
 
