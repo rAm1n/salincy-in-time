@@ -17,7 +17,7 @@ d_config = {
 		},
 
 	'ATTNCLSTM1-32':{
-			'input_dim' : 512,
+			'input_dim' : 64,
 			'hidden_dims' : [32],
 			'kernels' : [(3,3)],
 			'bidirectional': False,
@@ -372,7 +372,7 @@ class Custom_ConvLstm(nn.Module):
 
 	def forward(self, input, hidden_c=None):
 		_b, _t, _c , _h, _w = input.size()
-		assert (_t, _c, _h, _w) == (1 , 512 , 75, 100)
+		assert (_t, _h, _w) == (1 , 75, 100)
 
 		conv_output = list()
 		output, hidden_c = self.CLSTM(input, hidden_c)

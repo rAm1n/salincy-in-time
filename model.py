@@ -74,15 +74,22 @@ class RNNSaliency(SpatioTemporalSaliency):   # no batch training support b,c,h,w
 		if self.config['model']['type'] != 'RNN':
 			raise ValueError('Model type is not valid.')
 
-		encoder, decoder = self.config['model']['name'].upper().split('_')
+		self.e_name, self.d_name = self.config['model']['name'].upper().split('_')
 
-		self.encoder = make_encoder(e_config[encoder]).cuda()
-		self.decoder = make_decoder(d_config[decoder]).cuda()
+		self.encoder = make_encoder(e_config[self.e_name], self.config).cuda()
+		self.decoder = make_decoder(d_config[self.d_name]).cuda()
+		# self.readout = nn.Sequential(
+		# 	nn.Conv2d(512, 256, kernel_size=3, padding=1),
+		# 	nn.Conv2d(256, 128, kernel_size=3, padding=1),
+		# 	nn.Conv2d(128, 64, kernel_size=3, padding=1),
+		# 	).cuda()
+		# self.outconv = nn.Sequential(nn.Conv2d(512, 1, kernel_size=3, padding=1)).cuda()
+
 
 	def _init_hidden_state(self):
 		return self.decoder._init_hidden()
 
-	def forward(self, input, itr=15):
+	def forward(self, input, itr=8):
 
 		if self.training:
 			images, _ , _, _ = input
@@ -95,11 +102,13 @@ class RNNSaliency(SpatioTemporalSaliency):   # no batch training support b,c,h,w
 			# features = self.encoder.features(images)#.data
 			features, sal = self.encoder(images, layers=[4])
 			features = features[-1]
+			# features = self.readout(features)
 			for idx in range(t):
 				# features = self.encoder.features(images[[idx]])
-				feat = Variable(features[[idx]].unsqueeze(1).data).cuda()
+				# feat = Variable(features[[idx]].unsqueeze(1).data).cuda()
 				# feat = features[[idx]].unsqueeze(1)#.cuda()
 				# feat_copy = Variable(feat.unsqueeze(1)).cuda()
+				feat = features[[idx]].unsqueeze(1)
 				output, [_ , hidden_c] = self.decoder(feat, hidden_c)
 				result.append(output[0,0])
 
@@ -111,7 +120,7 @@ class RNNSaliency(SpatioTemporalSaliency):   # no batch training support b,c,h,w
 			t, c, h, w = images.size()
 			assert (h, w) == (600, 800)
 
-			img = Image.open(img)
+			img = Image.open(img)#.resize((800,300))
 
 
 			result = list()
@@ -120,7 +129,8 @@ class RNNSaliency(SpatioTemporalSaliency):   # no batch training support b,c,h,w
 
 			for idx in range(itr):
 				features, _ = self.encoder(image, layers=[4])
-				features = Variable(features[-1].data.unsqueeze(1), volatile=False).cuda()
+				# features = self.readout(features[-1])
+				features = Variable(features[-1].data.unsqueeze(1), volatile=True).cuda()
 				output, [_ , hidden_c] = self.decoder(features, hidden_c)
 				result.append(output[0,0])
 
@@ -176,18 +186,30 @@ class RNNSaliency(SpatioTemporalSaliency):   # no batch training support b,c,h,w
 		return blurred
 
 	def _initialize_weights(self,pretrained=True):
+		# for m in self.modules():
+			# if isinstance(m, nn.Conv2d):
+			# 	n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+			# 	m.weight.data.normal_(0, np.sqrt(2. / n))
+			# 	if m.bias is not None:
+			# 		m.bias.data.zero_()
+			# elif isinstance(m, nn.BatchNorm2d):
+			# 	m.weight.data.fill_(1)
+			# 	m.bias.data.zero_()
+			# elif isinstance(m, nn.Linear):
+			# 	#m.weight.data.normal_(0, 1)
+			# 	torch.nn.init.xavier_uniform(m.weight.data)
+			# 	m.bias.data.zero_()
 		for m in self.modules():
 			if isinstance(m, nn.Conv2d):
 				n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-				m.weight.data.normal_(0, np.sqrt(4. / n))
+				m.weight.data.normal_(0, np.sqrt(2. / n))
 				if m.bias is not None:
 					m.bias.data.zero_()
 			elif isinstance(m, nn.BatchNorm2d):
 				m.weight.data.fill_(1)
 				m.bias.data.zero_()
 			elif isinstance(m, nn.Linear):
-				#m.weight.data.normal_(0, 1)
-				torch.nn.init.xavier_uniform(m.weight.data)
+				m.weight.data.normal_(0, 0.01)
 				m.bias.data.zero_()
 		if pretrained:
 			self.encoder.load_weights()
@@ -237,7 +259,7 @@ class CNNSaliency(SpatioTemporalSaliency):   # no batch training support b,c,h,w
 		else: # eval mode --- supports batch?
 			images, sal, target, img = input
 			t, c, h, w = images.size()
-			assert (h, w) == (600, 800)
+			assert (h, w) == (300, 400)
 
 			img = Image.open(img)
 

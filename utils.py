@@ -69,7 +69,7 @@ def extract_model_fixations(seq, size):
 	first = np.zeros((size[0], size[1]))
 	for t in seq:
 		t = skimage.transform.resize(t, (size[0],size[1]))
-		first, t = t, (t-first)
+		# first, t = t, (t-first)
 		pos = np.array(np.unravel_index(t.argmax(), t.shape)[::-1])
 		pos[pos < 5] = 5 # matlab indexing problem
 		pos[pos > 795] = 794 #matlab indexing problem

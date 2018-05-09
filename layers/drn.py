@@ -99,13 +99,14 @@ class Bottleneck(nn.Module):
 
 class DRN(nn.Module):
 
-	def __init__(self, block, layers, num_classes=1,
+	def __init__(self, block, layers, config, num_classes=1,
 				 channels=(16, 32, 64, 128, 256, 512, 512, 512),
 				 pool_size=28, arch='D'):
 		super(DRN, self).__init__()
 		self.inplanes = channels[0]
 		self.out_dim = channels[-1]
 		self.arch = arch
+		self.config = config
 
 		if arch == 'C':
 			self.conv1 = nn.Conv2d(3, channels[0], kernel_size=7, stride=1,
@@ -152,7 +153,6 @@ class DRN(nn.Module):
 				self._make_conv_layers(channels[7], layers[7], dilation=1)
 
 		if num_classes > 0:
-			self.avgpool = nn.AvgPool2d(pool_size)
 			self.fc = nn.Conv2d(self.out_dim, num_classes, kernel_size=1,
 								stride=1, padding=0, bias=True)
 			self.sigmoid = nn.Sigmoid()
@@ -201,10 +201,19 @@ class DRN(nn.Module):
 			self.inplanes = channels
 		return nn.Sequential(*modules)
 
-	def load_weights(self, w_path):
+
+	def load_weights(self, w_path=''):
+		if not w_path:
+			sigma = self.config['dataset']['first_blur_sigma']
+			e_name = self.config['model']['name'].split('_')[0]
+			filename = 'weights/encoder-best-{0}-S{1}.pth.tar'
+			w_path = filename.format(e_name, sigma)
+
 		self.load_state_dict(torch.load(w_path)['state_dict'])
 
-	def forward(self, x, layers=range(8)):
+
+
+	def forward(self, x, layers=[7]):
 		y = list()
 
 		if self.arch == 'C':

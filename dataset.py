@@ -29,6 +29,7 @@ transform = transforms.Compose([
 		# transforms.RandomResizedCrop(224),
 #		transforms.RandomHorizontalFlip(),
 		# transforms.Pad((0,4,0,4)),
+		# transforms.Resize((300,400)),
 		transforms.ToTensor(),
 		normalize,
 	])
@@ -118,7 +119,9 @@ class SequnceDataset(Dataset):
 		# if result:
 		# 	return result
 
-		img = Image.open(img)
+		img = Image.open(img)#.resize((400,300))
+		#seqs = seqs / 2
+
 		w,h = img.size
 		sal = Image.open(sal)
 		user_seq = seqs[user_idx][:,[0,1]].astype(np.int32)
@@ -187,6 +190,7 @@ class SequnceDataset(Dataset):
 				pass
 
 		fixations = np.array(fixations)
+
 		# return [foveated_imgs, np.array(gts, dtype=np.float32), sal, fixations, np.array(history)]
 		return [foveated_imgs, np.array(gts, dtype=np.float32), sal, seqs, np.array(history)]
 
@@ -226,7 +230,7 @@ class SequnceDataset(Dataset):
 class Saliency(Dataset):
 	"""Face Landmarks dataset."""
 
-	def __init__(self, config, mode='train', transform=sal_transform, sal_transform=sal_gt_transform):
+	def __init__(self, config, mode='train', transform=transform, sal_transform=sal_gt_transform):
 		"""
 		Args:
 			csv_file (string): Path to the csv file with annotations.
@@ -272,13 +276,31 @@ class Saliency(Dataset):
 
 		# bluring input
 		img = Image.open(img)
-		img = img.filter(ImageFilter.GaussianBlur(self.config['dataset']['first_blur_sigma']))
+		w, h = img.size
+		if self.config['dataset']['first_blur_sigma']:
+			blurred = img.filter(ImageFilter.GaussianBlur(self.config['dataset']['first_blur_sigma']))
+
+			# adding random foveation.
+			# mask, gt = fov_mask((h,w), radius=self.config['dataset']['foveation_radius'],
+			# 				 	center=(np.random.rand(2) * (w , h)), th=self.config['dataset']['mask_th'])
+
+
+			# img = np.array(img)
+			# blurred = np.array(blurred)
+			# blurred[mask] = img[mask]
+			# blurred = Image.fromarray(blurred.astype(np.uint8))
+			img = blurred
+
 
 		sal = Image.open(sal)
+
 
 		if self.transform:
 			img = self.transform(img)
 		if self.sal_transform:
 			sal = self.sal_transform(sal)
+
+
+
 
 		return [img, sal]

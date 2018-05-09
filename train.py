@@ -63,8 +63,8 @@ parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
 #  					metavar='N', help='mini-batch size (default: 256)')
 # parser.add_argument('--lr', '--learning-rate', default=3e-4, type=float,
 # 					metavar='LR', help='initial learning rate')
-# parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
-# 					help='momentum')
+parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
+					help='momentum')
 # parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
 # 					metavar='W', help='weight decay (default: 1e-4)')
 parser.add_argument('--print-freq', '-p', default=10, type=int,
@@ -131,7 +131,7 @@ def main():
 				pass
 
 			model._initialize_weights(pretrained=True)
-			model = model.cuda()
+			# model = model.cuda()
 
 			for param in model.encoder.parameters():
 				param.requires_grad = False
@@ -139,12 +139,19 @@ def main():
 			criterion = nn.BCELoss().cuda()
 			# criterion = nn.MSELoss().cuda()
 
-			optimizer = torch.optim.Adam(model.decoder.parameters(), config['train']['lr'],
+			optimizer = torch.optim.Adam(
+							# list(model.readout.parameters()) +\
+							model.decoder.parameters(),
+							config['train']['lr'],
 							betas=(0.9, 0.999), eps=1e-08, weight_decay=config['train']['weight_decay'])
 
-			#
-			# optimizer_e = torch.optim.Adam(model.encoder.parameters(), config['train']['lr'],
-			# 								betas=(0.9, 0.999), eps=1e-08, weight_decay=config['train']['weight_decay'])
+			# optimizer = torch.optim.SGD(
+			# 							# list(model.readout.parameters()) +\
+			# 							list(model.decoder.parameters()),
+			# 							config['train']['lr'],
+			# 							momentum=args.momentum,
+			# 							weight_decay=config['train']['weight_decay'])
+
 
 			# if args.resume:
 			# 	if os.path.isfile(args.resume):
@@ -185,11 +192,12 @@ def main():
 				train(train_dataset, model, criterion, optimizer,
 								epoch, config)
 
-				# visualize(train_loader, model, str(user), str(epoch))
+
 				# evaluate on validation set
 				#if epoch%10 == 0:
 				validate(train_dataset, model, criterion, user, epoch, config)
 
+				# visualize(train_loader, model, str(user), str(epoch))
 
 				# remember best prec@1 and save checkpoint
 				# is_best = prec1 > best_prec1
@@ -255,16 +263,18 @@ def train(train_loader, model, criterion, optimizer, epoch, config):
 
 
 		# loss_en = criterion(en_sal, saliency_var)
-
+		h = h * 2
+		w = w * 2
 
 		losses.update(loss.data[0], x['input'].size(0))
 		# measure accuracy and record loss
 
 		output = output.data.cpu().numpy().squeeze()
-		output_fixations = extract_model_fixations(output, (h,w))
+		output_fixations = extract_model_fixations(output, (h,w ))
+
 
 		for m_idx, metric in enumerate(config['train']['metrics']):
-			acc  = accuracy(output_fixations, x['fixations'], metric,
+			acc  = accuracy(output_fixations, x['fixations'] * 2, metric,
 						height=h, width=w, matlab_engine=matlab)
 			if np.isnan(acc).any():
 				continue
@@ -335,8 +345,8 @@ def validate(val_loader, model, criterion, user, epoch, config):
 			evaluations.append({ metric: None for metric in config['eval']['metrics']})
 			continue
 
-#		if idx > 50:
-#			break
+		if idx > 100:
+			break
 
 
 		b,t, h,w = x['input'].size()
@@ -357,16 +367,17 @@ def validate(val_loader, model, criterion, user, epoch, config):
 
 		losses.update(loss.data[0], x['input'].size(0))
 
+		h = h * 2
+		w = w * 2
 
 		output = output.data.cpu().numpy().squeeze()
-		output_fixations = extract_model_fixations(output, (h,w))
+		output_fixations = extract_model_fixations(output, (h, w ))
 		voloums.append(output)
 		fixations.append(output_fixations)
 
-
 		tmp = dict()
 		for m_idx, metric in enumerate(config['eval']['metrics']):
-			acc  = accuracy(output_fixations, x['fixations'], metric, height=h, width=w, matlab_engine=matlab)
+			acc  = accuracy(output_fixations, x['fixations'] * 2, metric, height=h, width=w, matlab_engine=matlab)
 			prec[m_idx].update(acc)
 			tmp[metric] = prec[m_idx].val.flatten()
 		evaluations.append(tmp)

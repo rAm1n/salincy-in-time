@@ -8,8 +8,8 @@ CONFIG = {
 
 			'min_sequence_length': 3,
 			'max_sequence_length': 7,
-			'foveation_radius': 60,
-			'sequence_distance': 60,
+			'foveation_radius': 30,
+			'sequence_distance': 30,
 			'mask_th' : 0.01,
 
 			# encoder training
@@ -18,7 +18,7 @@ CONFIG = {
 		},
 
 	'model': {
-			'name' : 'DRN26_AttnCLSTM1-64',
+			'name' : 'DVGG16_AttnCLSTM1-64',
 			'type' : 'RNN',
 		},
 
@@ -48,8 +48,8 @@ CONFIG = {
 		},
 
 
-	'weights_path' : '/media/ramin/data/scanpath/weights/',
-	'eval_path': '/media/ramin/data/scanpath/eval/',
+	'weights_path' : '/media/ramin/data/scanpath/weights/same_norm/',
+	'eval_path': '/media/ramin/data/scanpath/eval/same_norm/',
 	'visualization_path' : '/media/ramin/data/scanpath/visualization-4/'
 }
 
@@ -58,5 +58,5 @@ CONFIG = {
 #MODELS = ['DVGG16_CLSTM2', 'DVGG16_CLSTM4', 'DVGG16_BCLSTM3']
 
 
-MODELS = ['DVGG16_ATTNCLSTM1-256']
+MODELS = ['DVGG16_ATTNCLSTM1-64']
 

@@ -110,7 +110,7 @@ def main():
 		data = pickle.load(open(pkl,'rb'))
 		pkl = pkl.replace('.pkl','')
 		policy = pkl.split('/')[-2]
-		model_name, dataset, depth, user, epoch = pkl.split('/')[-1].split('-')
+		model_name, depth, dataset , user, epoch = pkl.split('/')[-1].split('-')
 		sequence = d.get('sequence')[:,int(user)]
 
 		path = os.path.join(out_path, dataset, model_name + '-' + depth, policy, user, epoch)
@@ -137,11 +137,12 @@ def main():
 
 			for seq_idx, seq in enumerate(sequence[idx]):
 				try:
-					# mask = volume[seq_idx] /  volume[seq_idx].max()
+					print(volume[seq_idx].max())
+					mask = volume[seq_idx] /  volume[seq_idx].max()
 					# mask = np.array(volume[seq_idx], dtype=np.uint8)
 					if  seq_idx >= len(fixation):
 						break
-					_ , mask = fov_mask(center=fixation[seq_idx].tolist(), radius=80)
+					# _ , mask = fov_mask(center=fixation[seq_idx].tolist(), radius=80)
 					mask = np.array(mask * 255, dtype=np.uint8)
 					mask = Image.fromarray(mask).resize((w,h)).convert('RGB')
 

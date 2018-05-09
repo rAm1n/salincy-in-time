@@ -93,7 +93,7 @@ def main():
 		model_name = CONFIG['model']['name']
 		en_name = model_name.split('_')[0]
 		logging.info("=> creating model '{}'".format(en_name))
-		model = make_encoder(config=e_config[en_name])
+		model = make_encoder(e_config[en_name], CONFIG)
 		# model._initialize_weights()
 
 
@@ -104,9 +104,9 @@ def main():
 	# define loss function (criterion) and optimizer
 	criterion = nn.BCELoss().cuda()
 
-#	optimizer = torch.optim.SGD(model.parameters(), args.lr,
-#								momentum=args.momentum,
-#								weight_decay=args.weight_decay)
+	# optimizer = torch.optim.SGD(model.parameters(), args.lr,
+	# 							momentum=args.momentum,
+	# 							weight_decay=args.weight_decay)
 
 	optimizer = torch.optim.Adam(model.parameters(), args.lr,
 								betas=(0.9, 0.999), eps=1e-08, weight_decay=args.weight_decay)
@@ -126,7 +126,7 @@ def main():
 			args.start_epoch = checkpoint['epoch']
 			best_prec1 = checkpoint['best_prec1']
 			model.load_state_dict(checkpoint['state_dict'])
-			optimizer.load_state_dict(checkpoint['optimizer'])
+			# optimizer.load_state_dict(checkpoint['optimizer'])
 			logging.info("=> loaded checkpoint '{}' (epoch {})"
 				  .format(args.resume, checkpoint['epoch']))
 		else:
@@ -263,13 +263,16 @@ def validate(val_loader, model, criterion):
 	return top1.avg
 
 
-def save_checkpoint(state, is_best, filename='encoder-{0}-{1}.pth.tar'):
+def save_checkpoint(state, is_best, filename='encoder-{0}-{1}-S{2}.pth.tar'):
 	date = datetime.now().strftime('_%y-%d-%m_%H-%M')
-	filename = os.path.join(args.weights, filename.format(en_name, date))
+	sigma = CONFIG['dataset']['first_blur_sigma']
+	filename = filename.format(en_name, date, sigma)
+	filename = os.path.join(args.weights, filename)
 	torch.save(state, filename)
 	if is_best:
 		logging.warning('***********************saving best model *********************')
-		best = os.path.join(args.weights, 'encoder-best-{0}.pth.tar'.format(en_name))
+		best = os.path.join(args.weights,
+				'encoder-best-{0}-S{1}.pth.tar'.format(en_name, sigma))
 		shutil.copyfile(filename, best)
 
 
@@ -315,12 +318,14 @@ def visualize(loader, model):
 		target = target.cuda(async=True)
 		input_var = torch.autograd.Variable(input, volatile=True).cuda()
 		target_var = torch.autograd.Variable(target, volatile=True)
-		output = model(input_var).data.cpu().numpy()
+		output = model(input_var)[1].data.cpu().numpy()
 		for idx, img in enumerate(input):
 			img = Image.open(loader.dataset.dataset[counter][0])
 			counter+=1
 			w, h = img.size
-			mask = np.array(output[idx][0] * 255, dtype=np.uint8)
+			# mask = np.array(output[idx][0] * 255, dtype=np.uint8)
+			mask = np.array((output[idx][0] / output[idx][0].max()) * 255, dtype=np.uint8)
+			print(mask.max())
 			mask = Image.fromarray(mask).resize((w,h)).convert('RGB')
 			saliency = np.array(target[idx][0] * 255, dtype=np.uint8)
 			saliency = Image.fromarray(saliency).resize((w,h)).convert('RGB')
